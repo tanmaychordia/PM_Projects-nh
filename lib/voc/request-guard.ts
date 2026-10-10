@@ -18,22 +18,65 @@ function clientKey(request: Request): string {
   return forwarded || request.headers.get('x-real-ip') || 'unknown'
 }
 
+function toOrigin(value: string | undefined): string | null {
+  if (!value) return null
+  try {
+    return new URL(value.includes('://') ? value : `https://${value}`).origin
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Origins trusted when a browser omits Fetch Metadata. Sourced only from
+ * server-side configuration, never from request headers such as Host.
+ * APP_ALLOWED_ORIGINS is a comma-separated list, e.g. "https://voc.example.com".
+ */
+function trustedOrigins(): Set<string> {
+  const candidates = [
+    ...(process.env.APP_ALLOWED_ORIGINS?.split(',') ?? []),
+    process.env.VERCEL_URL,
+    process.env.VERCEL_BRANCH_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  ]
+  const origins = new Set<string>()
+  for (const candidate of candidates) {
+    const origin = toOrigin(candidate?.trim())
+    if (origin) origins.add(origin)
+  }
+  if (process.env.NODE_ENV === 'development') {
+    origins.add('http://localhost:3000')
+    origins.add('http://127.0.0.1:3000')
+  }
+  return origins
+}
+
+function reject(reason: string, message: string): GuardRejection {
+  console.warn(`[voc] review fetch rejected reason=${reason}`)
+  return { code: 'CROSS_ORIGIN_REJECTED', status: 403, message }
+}
+
+/**
+ * Browsers set Sec-Fetch-Site themselves and page scripts cannot change it, so it
+ * stays accurate behind proxies that rewrite Host. Only "same-origin" is accepted.
+ * Without Fetch Metadata, a present Origin must match a configured trusted origin.
+ * Requests with neither header come from non-browser clients, which cannot carry
+ * a victim's browser context, so they are left to the throttling guard.
+ */
 export function checkSameOrigin(request: Request): GuardRejection | null {
-  if (request.headers.get('sec-fetch-site') === 'cross-site') {
-    return { code: 'CROSS_ORIGIN_REJECTED', status: 403, message: 'Cross-site requests are not allowed.' }
+  const fetchSite = request.headers.get('sec-fetch-site')
+  if (fetchSite) {
+    if (fetchSite === 'same-origin') return null
+    return reject(`sec-fetch-site:${fetchSite}`, 'Cross-site requests are not allowed.')
   }
-  const origin = request.headers.get('origin')
-  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
-  if (origin && host) {
-    try {
-      if (new URL(origin).host !== host) {
-        return { code: 'CROSS_ORIGIN_REJECTED', status: 403, message: 'Cross-origin requests are not allowed.' }
-      }
-    } catch {
-      return { code: 'CROSS_ORIGIN_REJECTED', status: 403, message: 'Invalid Origin header.' }
-    }
-  }
-  return null
+
+  const originHeader = request.headers.get('origin')
+  if (!originHeader) return null
+
+  const origin = toOrigin(originHeader)
+  if (!origin || originHeader === 'null') return reject('origin:invalid', 'Invalid Origin header.')
+  if (trustedOrigins().has(origin)) return null
+  return reject('origin:untrusted', 'Cross-origin requests are not allowed.')
 }
 
 /** Reserves the collector for this request; call the returned release function when done. */
