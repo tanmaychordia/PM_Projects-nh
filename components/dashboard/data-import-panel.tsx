@@ -1,50 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { AlertCircle, CheckCircle2, CloudDownload, ExternalLink, Loader2, Package } from 'lucide-react'
+import { AlertCircle, CheckCircle2, CloudDownload, ExternalLink, Info, Loader2, Package } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { PLAY_STORE_PACKAGE_ID, PLAY_STORE_URL } from '@/lib/voc/config'
-import type { ApiErrorResponse, FetchReviewsSuccess } from '@/lib/voc/types'
-
-type FetchState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'success'; result: FetchReviewsSuccess }
-  | { status: 'error'; code: string; message: string; at: string }
+import { PLAY_STORE_PACKAGE_ID, PLAY_STORE_URL, REVIEW_FETCH } from '@/lib/voc/config'
+import { useReviewCollection } from './review-collection-provider'
 
 export function DataImportPanel() {
-  const [state, setState] = useState<FetchState>({ status: 'idle' })
-
-  async function handleFetch() {
-    setState({ status: 'loading' })
-    const at = new Date().toISOString()
-    try {
-      const res = await fetch('/api/reviews/fetch', { method: 'POST', cache: 'no-store' })
-      const body = await res.json().catch(() => null)
-
-      if (res.ok && body && typeof body.fetchedCount === 'number') {
-        setState({ status: 'success', result: body as FetchReviewsSuccess })
-        return
-      }
-
-      const error = (body as ApiErrorResponse | null)?.error
-      setState({
-        status: 'error',
-        code: error?.code ?? `HTTP_${res.status}`,
-        message: error?.message ?? `The server responded with HTTP ${res.status}. No reviews were fetched.`,
-        at,
-      })
-    } catch {
-      setState({
-        status: 'error',
-        code: 'NETWORK_ERROR',
-        message: 'Could not reach the server. Check your connection and try again. No reviews were fetched.',
-        at,
-      })
-    }
-  }
+  const { state, fetchReviews } = useReviewCollection()
+  const lastFetch = state.status === 'success' ? new Date(state.result.fetchedAt).toLocaleString() : 'Not in this session'
 
   return (
     <Card className="gap-0 py-0">
@@ -73,31 +38,34 @@ export function DataImportPanel() {
               <span className="sr-only">(opens in a new tab)</span>
             </a>
           </dd>
-          <dt className="text-muted-foreground">Connection</dt>
-          <dd className="inline-flex items-center gap-1.5 font-medium text-warning-foreground">
-            <span className="size-1.5 rounded-full bg-warning" aria-hidden="true" />
-            Not connected
+          <dt className="text-muted-foreground">Storefront</dt>
+          <dd className="font-mono uppercase text-foreground">
+            {REVIEW_FETCH.country} · {REVIEW_FETCH.language}
           </dd>
+          <dt className="text-muted-foreground">Order · limit</dt>
+          <dd className="text-foreground">Newest first · max {REVIEW_FETCH.maxReviews}</dd>
           <dt className="text-muted-foreground">Last fetch</dt>
-          <dd className="text-muted-foreground">Never</dd>
+          <dd className="text-muted-foreground">{lastFetch}</dd>
         </dl>
 
-        <p className="rounded-md bg-surface px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
-          {
-            'Google Play review collection has not been connected yet. Fetching is wired to a real server endpoint, which currently reports that no collector is configured — no reviews will be imported or simulated.'
-          }
+        <p className="flex gap-2 rounded-md bg-surface px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            Reviews are collected live from Google Play on the server. Results are held in this browser session only
+            and are not stored in a database yet.
+          </span>
         </p>
 
-        <Button onClick={handleFetch} disabled={state.status === 'loading'} className="w-full" size="lg">
+        <Button onClick={fetchReviews} disabled={state.status === 'loading'} className="w-full" size="lg">
           {state.status === 'loading' ? (
             <>
               <Loader2 className="animate-spin" aria-hidden="true" />
-              Fetching reviews…
+              Fetching from Google Play…
             </>
           ) : (
             <>
               <CloudDownload aria-hidden="true" />
-              Fetch reviews
+              {state.status === 'success' ? 'Fetch again' : 'Fetch reviews'}
             </>
           )}
         </Button>
@@ -106,7 +74,7 @@ export function DataImportPanel() {
           {state.status === 'error' && (
             <Alert variant="destructive" className="border-destructive/30 bg-destructive/5">
               <AlertCircle aria-hidden="true" />
-              <AlertTitle className="text-xs font-semibold">Fetch not completed</AlertTitle>
+              <AlertTitle className="text-xs font-semibold">Fetch failed</AlertTitle>
               <AlertDescription className="flex flex-col gap-1.5 text-xs">
                 <span>{state.message}</span>
                 <span className="font-mono text-[11px] text-destructive/80">
@@ -118,9 +86,14 @@ export function DataImportPanel() {
           {state.status === 'success' && (
             <Alert className="border-success/30 bg-success/5 text-success">
               <CheckCircle2 aria-hidden="true" />
-              <AlertTitle className="text-xs font-semibold">Reviews fetched</AlertTitle>
+              <AlertTitle className="text-xs font-semibold">
+                {state.result.retainedCount > 0 ? 'Reviews fetched' : 'Fetch completed — no reviews returned'}
+              </AlertTitle>
               <AlertDescription className="text-xs">
-                {state.result.fetchedCount.toLocaleString()} reviews collected for {state.result.packageId}.
+                {state.result.fetchedCount} returned by Google Play · {state.result.retainedCount} retained
+                {state.result.duplicateCount > 0 && ` · ${state.result.duplicateCount} duplicates removed`}
+                {state.result.invalidCount > 0 && ` · ${state.result.invalidCount} invalid dropped`}
+                {` · ${(state.result.durationMs / 1000).toFixed(1)}s`}
               </AlertDescription>
             </Alert>
           )}

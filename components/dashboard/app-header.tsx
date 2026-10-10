@@ -4,6 +4,7 @@ import { AudioLines } from 'lucide-react'
 import { useHealth } from '@/hooks/use-health'
 import { APP_NAME } from '@/lib/voc/config'
 import { cn } from '@/lib/utils'
+import { useReviewCollection } from './review-collection-provider'
 
 export function AppHeader() {
   return (
@@ -26,16 +27,50 @@ export function AppHeader() {
 
         <div className="flex items-center gap-2">
           <ApiStatusPill />
-          <div
-            role="status"
-            className="inline-flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning-foreground"
-          >
-            <span className="size-1.5 rounded-full bg-warning" aria-hidden="true" />
-            Data not connected
-          </div>
+          <DataStatusPill />
         </div>
       </div>
     </header>
+  )
+}
+
+function DataStatusPill() {
+  const { state } = useReviewCollection()
+
+  const view = {
+    idle: { label: 'No reviews loaded', tone: 'warning' },
+    loading: { label: 'Fetching reviews…', tone: 'neutral' },
+    success: {
+      label: state.status === 'success' ? `${state.result.retainedCount} reviews loaded` : '',
+      tone: 'success',
+    },
+    error: { label: 'Fetch failed', tone: 'error' },
+  }[state.status]
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        'inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium',
+        view.tone === 'warning' && 'border-warning/40 bg-warning/10 text-warning-foreground',
+        view.tone === 'neutral' && 'bg-card text-muted-foreground',
+        view.tone === 'success' && 'border-success/30 bg-success/5 text-success',
+        view.tone === 'error' && 'border-destructive/30 bg-destructive/5 text-destructive',
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          'size-1.5 rounded-full',
+          view.tone === 'warning' && 'bg-warning',
+          view.tone === 'neutral' && 'animate-pulse bg-muted-foreground/50',
+          view.tone === 'success' && 'bg-success',
+          view.tone === 'error' && 'bg-destructive',
+        )}
+      />
+      {view.label}
+    </div>
   )
 }
 
