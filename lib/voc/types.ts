@@ -44,6 +44,19 @@ export interface PainPoint {
   shareOfNegative: number
   confidence: Confidence
   evidence: EvidenceQuote[]
+  /** Composite ranking score (0–100). Shown so users understand how themes were prioritized. */
+  score?: number
+  /** Human-readable breakdown of how `score` was derived. */
+  scoreBreakdown?: PainPointScoreBreakdown
+}
+
+export interface PainPointScoreBreakdown {
+  frequencyPoints: number
+  negativityPoints: number
+  recencyPoints: number
+  evidencePoints: number
+  total: number
+  rationale: string
 }
 
 export interface Recommendation {
@@ -54,6 +67,36 @@ export interface Recommendation {
   horizon: 'now' | 'next' | 'later'
   supportingReviewIds: string[]
 }
+
+export interface AnalysisResponse {
+  method: 'rule_based_v1'
+  methodLabel: string
+  methodDescription: string
+  limitations: string[]
+  painPoints: PainPoint[]
+  recommendations: Recommendation[]
+  meta: {
+    reviewCount: number
+    negativeReviewCount: number
+    themesFound: number
+    themesSkipped: number
+    analyzedAt: string
+    durationMs: number
+  }
+}
+
+export type AnalysisErrorCode =
+  | 'METHOD_NOT_ALLOWED'
+  | 'INVALID_BODY'
+  | 'NO_REVIEWS'
+  | 'NO_TEXT_REVIEWS'
+  | 'INTERNAL_ERROR'
+
+export type AnalysisState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; result: AnalysisResponse }
+  | { status: 'error'; code: string; message: string }
 
 export interface HealthResponse {
   status: 'ok'

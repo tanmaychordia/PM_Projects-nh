@@ -1,5 +1,5 @@
 export const APP_NAME = 'Snabbit VoC Copilot'
-export const APP_VERSION = '0.3.0'
+export const APP_VERSION = '0.4.0'
 
 export const PLAY_STORE_PACKAGE_ID = 'com.snabbit.customer'
 export const PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=${PLAY_STORE_PACKAGE_ID}`
@@ -46,6 +46,6 @@ export const integrations = {
   },
   analysisEngine: {
     name: 'Theme & pain-point analysis',
-    status: 'not_configured' as IntegrationStatus,
+    status: 'connected' as IntegrationStatus,
   },
 }
