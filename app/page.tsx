@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/next'
 import { AnalysisWorkspace } from '@/components/dashboard/analysis-workspace'
 import { AppHeader } from '@/components/dashboard/app-header'
 import { DataImportPanel } from '@/components/dashboard/data-import-panel'
@@ -33,6 +34,7 @@ export default function Page() {
           </div>
         </main>
       </div>
+      {process.env.NODE_ENV === 'production' && <Analytics />}
     </ReviewCollectionProvider>
   )
 }
