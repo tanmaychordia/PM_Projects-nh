@@ -14,7 +14,7 @@ export default function Page() {
     <ReviewCollectionProvider>
       <div className="min-h-dvh">
         <AppHeader />
-        <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-6 py-8">
+        <main className="mx-auto flex max-w-[1440px] flex-col gap-6 px-6 py-20">
           <OverviewCards />
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
