@@ -2,9 +2,9 @@ import { cn } from '@/lib/utils'
 
 const steps = [
   { label: 'Collect reviews', detail: 'Google Play' },
-  { label: 'Cluster themes', detail: 'Group by pain point' },
-  { label: 'Verify quotes', detail: 'Match to source text' },
-  { label: 'Recommend', detail: 'Prioritized roadmap' },
+  { label: 'Classify', detail: 'Context-aware rules' },
+  { label: 'Verify evidence', detail: 'Quote + relevance' },
+  { label: 'Rank & recommend', detail: 'Scored roadmap' },
 ] as const
 
 type StepStatus = 'pending' | 'active' | 'done'

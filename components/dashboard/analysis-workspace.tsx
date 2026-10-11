@@ -17,10 +17,10 @@ import { useReviewCollection } from './review-collection-provider'
 const painPointColumns = [
   { label: 'Rank', className: 'w-14' },
   { label: 'Theme / pain point', className: '' },
-  { label: 'Reviews', className: 'w-24 text-right' },
-  { label: 'Share of negative', className: 'w-36 text-right' },
-  { label: 'Confidence', className: 'w-28' },
-  { label: 'Evidence', className: 'w-28 text-right' },
+  { label: 'Reviews', className: 'w-20 text-right' },
+  { label: 'Share of neg.', className: 'w-28 text-right' },
+  { label: 'Confidence', className: 'w-24' },
+  { label: 'Evidence', className: 'w-24 text-right' },
 ]
 
 const confidenceStyles: Record<Confidence, string> = {
@@ -35,7 +35,6 @@ export function AnalysisWorkspace() {
 
   const reviews = collectionState.status === 'success' ? collectionState.result.reviews : []
   const hasReviews = reviews.length > 0
-  const canRun = hasReviews && analysisState.status !== 'loading'
 
   const pipelineStatuses = useMemo(() => {
     if (analysisState.status === 'idle') return undefined
@@ -43,6 +42,8 @@ export function AnalysisWorkspace() {
     if (analysisState.status === 'error') return ['done', 'done', 'pending', 'pending'] as const
     return ['done', 'done', 'done', 'done'] as const
   }, [analysisState.status])
+
+  const meta = analysisState.status === 'success' ? analysisState.result.meta : null
 
   return (
     <Card className="gap-0 py-0">
@@ -55,7 +56,7 @@ export function AnalysisWorkspace() {
           {analysisState.status === 'success' ? (
             <Badge variant="outline" className="font-normal text-primary">
               <Sparkles className="size-3" aria-hidden="true" />
-              {analysisState.result.meta.themesFound} themes
+              {meta!.themesFound} themes
             </Badge>
           ) : analysisState.status === 'loading' ? (
             <Badge variant="outline" className="font-normal text-muted-foreground">
@@ -108,9 +109,9 @@ export function AnalysisWorkspace() {
                 <div className="flex max-w-md flex-col gap-2">
                   <p className="text-sm font-medium text-foreground">Ready to analyze</p>
                   <p className="text-xs leading-relaxed text-pretty text-muted-foreground whitespace-normal">
-                    {reviews.length} reviews are available. Run the rule-based analysis to identify
-                    pain points, group them into themes, and generate a ranked summary with
-                    evidence quotes.
+                    {reviews.length} reviews are available. Run the rule-based analysis to classify
+                    each review using the Snabbit-specific taxonomy, identify pain points, and generate
+                    a ranked summary with verified evidence quotes.
                   </p>
                 </div>
                 <Button onClick={() => runAnalysis(reviews)} size="lg">
@@ -132,7 +133,7 @@ export function AnalysisWorkspace() {
             <Skeleton className="h-9 w-3/4" />
             <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-              Matching keywords, verifying quotes, and ranking themes…
+              Classifying reviews, verifying evidence, and ranking themes…
             </div>
           </div>
         )}
@@ -166,6 +167,18 @@ export function AnalysisWorkspace() {
         {/* Success with results */}
         {analysisState.status === 'success' && analysisState.result.painPoints.length > 0 && (
           <>
+            {/* Meta stats */}
+            {meta && (
+              <div className="grid grid-cols-2 gap-px border-b bg-border sm:grid-cols-4 lg:grid-cols-6">
+                <MetaStat label="Classified" value={`${meta.reviewsClassified}`} />
+                <MetaStat label="Excluded" value={`${meta.reviewsExcluded}`} />
+                <MetaStat label="Unclear" value={`${meta.reviewsUnclear}`} />
+                <MetaStat label="Negative" value={`${meta.negativeReviewCount}`} sub={`denom: ${meta.negativeDenominator}`} />
+                <MetaStat label="Themes found" value={`${meta.themesFound}`} />
+                <MetaStat label="Themes skipped" value={`${meta.themesSkipped}`} />
+              </div>
+            )}
+
             <Table>
               <caption className="sr-only">Ranked pain points</caption>
               <TableHeader>
@@ -224,12 +237,37 @@ export function AnalysisWorkspace() {
                       </span>
                     </TableCell>
                     <TableCell className="px-4 py-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
-                      {pp.evidence.length} quotes
+                      {pp.evidence.filter((e) => e.relevant).length}/{pp.evidence.length} quotes
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+
+            {/* Taxonomy + scoring methodology */}
+            {analysisState.status === 'success' && (
+              <div className="flex flex-col gap-3 border-t px-4 py-3">
+                <details className="text-[11px]">
+                  <summary className="cursor-pointer font-medium text-foreground">Taxonomy & category definitions</summary>
+                  <ul className="mt-2 flex flex-col gap-1 text-muted-foreground">
+                    {analysisState.result.taxonomy.map((cat) => (
+                      <li key={cat.id}>
+                        <span className="font-medium text-foreground">{cat.label}</span> — {cat.description}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+                <details className="text-[11px]">
+                  <summary className="cursor-pointer font-medium text-foreground">Scoring methodology</summary>
+                  <p className="mt-2 leading-relaxed text-muted-foreground">{meta!.scoringMethodology}</p>
+                </details>
+                <p className="text-[11px] text-muted-foreground/80">
+                  Labels are overlapping — a review may appear in multiple themes. Share of negative
+                  is not mutually exclusive. Confidence is a heuristic label, not a statistical measure.
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between border-t px-4 py-2.5">
               <span className="text-[11px] text-muted-foreground">
                 Click a row to inspect evidence in the Evidence panel.
@@ -251,7 +289,7 @@ export function AnalysisWorkspace() {
               <p className="text-sm font-medium text-foreground">No themes met the evidence threshold</p>
               <p className="text-xs leading-relaxed text-pretty text-muted-foreground whitespace-normal">
                 {analysisState.result.limitations.find((l) => l.includes('No themes')) ??
-                  'Not enough reviews matched the keyword catalog with sufficient evidence. Try collecting more reviews.'}
+                  'Not enough reviews matched the taxonomy with sufficient evidence. Try collecting more reviews.'}
               </p>
             </div>
             {hasReviews && (
@@ -263,6 +301,16 @@ export function AnalysisWorkspace() {
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function MetaStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="flex flex-col gap-0.5 bg-surface px-3 py-2">
+      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{value}</span>
+      {sub && <span className="text-[10px] text-muted-foreground/70">{sub}</span>}
+    </div>
   )
 }
 

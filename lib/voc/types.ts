@@ -27,61 +27,138 @@ export interface Review {
   collectedVia: CollectionSort
 }
 
+// ---------------------------------------------------------------------------
+// Taxonomy
+// ---------------------------------------------------------------------------
+
+export type CategoryId =
+  | 'service_delivery'
+  | 'booking_availability'
+  | 'payments_credits_refunds'
+  | 'customer_support'
+  | 'trust_safety_property'
+  | 'app_functionality'
+  | 'account_access'
+  | 'updates_compatibility'
+  | 'positive_experience'
+  | 'other_unclear'
+
+export type Sentiment = 'positive' | 'negative' | 'neutral' | 'mixed'
+
+// ---------------------------------------------------------------------------
+// Evidence
+// ---------------------------------------------------------------------------
+
 export interface EvidenceQuote {
   reviewId: string
   quote: string
+  /** True only if `quote` is an exact substring of the original review title or text AND `reviewId` exists in the dataset. */
   verified: boolean
+  /** True if the quote textually supports the assigned category (keyword-in-context check). False if relevance cannot be established. */
+  relevant: boolean
+  /** "verified" means exact string match only; "relevant" means the quote contextually supports the theme. */
+  verificationNote: string
 }
 
 export type Confidence = 'high' | 'medium' | 'low'
 
+// ---------------------------------------------------------------------------
+// Pain points & recommendations
+// ---------------------------------------------------------------------------
+
+export interface PainPointScoreBreakdown {
+  /** Max 40 pts. = (uniqueReviewIdsInTheme / totalReviewsWithText) * 40, capped at 40. */
+  frequencyPoints: number
+  /** Max 30 pts. = (negativeReviewsInTheme / uniqueReviewsInTheme) * 30. Denominator is unique reviews in theme, not total negatives. */
+  negativityPoints: number
+  /** Max 20 pts. Average recency bucket across theme reviews: ≤30d=20, ≤90d=12, ≤180d=6, >180d=0. */
+  recencyPoints: number
+  /** Max 10 pts. = (relevantVerifiedQuotes / min(uniqueReviews, 4)) * 10. Only relevance-verified quotes count. */
+  evidencePoints: number
+  total: number
+  /** Human-readable explanation of every component and its denominator. */
+  rationale: string
+}
+
 export interface PainPoint {
-  id: string
+  id: CategoryId
   rank: number
   theme: string
   summary: string
   reviewCount: number
+  /** Overlapping share: uniqueReviewsInTheme / totalNegativeReviews. NOT mutually exclusive. */
   shareOfNegative: number
   confidence: Confidence
+  /** Explicitly labeled heuristic — not statistically calibrated. */
+  confidenceBasis: string
   evidence: EvidenceQuote[]
-  /** Composite ranking score (0–100). Shown so users understand how themes were prioritized. */
-  score?: number
-  /** Human-readable breakdown of how `score` was derived. */
-  scoreBreakdown?: PainPointScoreBreakdown
-}
-
-export interface PainPointScoreBreakdown {
-  frequencyPoints: number
-  negativityPoints: number
-  recencyPoints: number
-  evidencePoints: number
-  total: number
-  rationale: string
+  /** Composite heuristic score (0–100). */
+  score: number
+  scoreBreakdown: PainPointScoreBreakdown
+  /** Count of reviews where the classifier had low certainty about the primary category. */
+  uncertainCount: number
 }
 
 export interface Recommendation {
   id: string
-  painPointId: string
+  painPointId: CategoryId
   title: string
+  /** The specific customer problem, grounded in evidence. */
+  problem: string
+  /** A concrete proposed action. */
+  action: string
+  /** Why it matters to the customer or business. */
   rationale: string
   horizon: 'now' | 'next' | 'later'
   supportingReviewIds: string[]
+  /** Heuristic confidence or priority rationale. */
+  priorityRationale: string
+  /** A suggested metric that could be measured after implementation. */
+  successMetric: string
+  /** "supported" if evidence is strong, "needs_validation" if weak or ambiguous. */
+  status: 'supported' | 'needs_validation'
+}
+
+// ---------------------------------------------------------------------------
+// Analysis response
+// ---------------------------------------------------------------------------
+
+export interface ReviewClassification {
+  reviewId: string
+  primaryCategory: CategoryId
+  secondaryCategories: CategoryId[]
+  sentiment: Sentiment
+  /** Whether the review describes an app/product issue, a service-delivery issue, or both. */
+  domain: 'app' | 'service' | 'both' | 'unclear'
+  actionable: boolean
+  /** Classifier certainty about the primary category: high if strong contextual match, low if fallback. */
+  certainty: 'high' | 'low'
+  reason: string
 }
 
 export interface AnalysisResponse {
-  method: 'rule_based_v1'
+  method: 'rule_based_v2'
   methodLabel: string
   methodDescription: string
   limitations: string[]
+  taxonomy: { id: CategoryId; label: string; description: string }[]
   painPoints: PainPoint[]
   recommendations: Recommendation[]
+  classifications: ReviewClassification[]
   meta: {
     reviewCount: number
+    reviewsClassified: number
+    reviewsExcluded: number
+    reviewsUnclear: number
     negativeReviewCount: number
+    /** Denominator for shareOfNegative: count of reviews with rating ≤ 2 AND usable text. */
+    negativeDenominator: number
     themesFound: number
     themesSkipped: number
+    overlappingLabels: boolean
     analyzedAt: string
     durationMs: number
+    scoringMethodology: string
   }
 }
 
@@ -97,6 +174,68 @@ export type AnalysisState =
   | { status: 'loading' }
   | { status: 'success'; result: AnalysisResponse }
   | { status: 'error'; code: string; message: string }
+
+// ---------------------------------------------------------------------------
+// Evaluation
+// ---------------------------------------------------------------------------
+
+export interface HumanLabel {
+  reviewId: string
+  /** Human-assigned primary category. */
+  primaryCategory: CategoryId
+  /** Optional human-assigned secondary categories. */
+  secondaryCategories: CategoryId[]
+  sentiment: Sentiment
+  actionable: boolean
+  /** True if a human verified that the evidence quote is relevant to the assigned category. */
+  evidenceRelevant?: boolean
+  /** Optional note from the human labeller. */
+  note?: string
+}
+
+export interface BenchmarkDataset {
+  schemaVersion: 1
+  labels: HumanLabel[]
+  /** ISO timestamp of last modification. */
+  updatedAt: string
+  /** Number of labels that have been manually reviewed. Never fabricated. */
+  reviewedCount: number
+  /** Target benchmark size. */
+  targetSize: number
+}
+
+export interface CategoryMetrics {
+  categoryId: CategoryId
+  label: string
+  labelled: number
+  predicted: number
+  truePositives: number
+  falsePositives: number
+  falseNegatives: number
+  precision: number | null
+  recall: number | null
+  f1: number | null
+}
+
+export interface EvaluationResult {
+  perCategory: CategoryMetrics[]
+  macroPrecision: number | null
+  macroRecall: number | null
+  macroF1: number | null
+  /** Primary-category accuracy: predicted primary == labelled primary. */
+  primaryAccuracy: number | null
+  sentimentAccuracy: number | null
+  quoteIntegrityPassRate: number | null
+  /** Only calculated when relevance labels exist. */
+  evidenceRelevancePassRate: number | null
+  labelledCount: number
+  evaluatedCount: number
+  benchmarkComplete: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Existing types (unchanged)
+// ---------------------------------------------------------------------------
 
 export interface HealthResponse {
   status: 'ok'
@@ -154,12 +293,9 @@ export type PassStopReason =
 export interface CollectionPassSummary {
   sort: CollectionSort
   pagesFetched: number
-  /** Sum of `num` values sent to Google Play in this pass. */
   requestedCount: number
-  /** Raw items Google Play returned in this pass, before validation. */
   fetchedCount: number
   invalidCount: number
-  /** Items whose review ID was already collected (in this or an earlier pass). */
   duplicateCount: number
   newUniqueCount: number
   stopReason: PassStopReason
@@ -204,20 +340,14 @@ export interface FetchReviewsSuccess {
   }
   samplingNote: string
   targetUniqueCount: number
-  /** True only if every planned pass ran without upstream errors, deadlines, or skips. */
   complete: boolean
   targetReached: boolean
   requestCount: number
   requestedCount: number
-  /** Raw items returned by Google Play before validation. */
   fetchedCount: number
-  /** Items dropped because required fields were missing or malformed. */
   invalidCount: number
-  /** Items dropped because their source ID was already seen. */
   duplicateCount: number
-  /** Valid, unique items beyond the target that upstream returned in excess of `num`. */
   overflowCount: number
-  /** Reviews returned in `reviews` after validation and deduplication. */
   retainedCount: number
   passes: CollectionPassSummary[]
   quality: DatasetQuality

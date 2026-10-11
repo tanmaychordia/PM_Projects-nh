@@ -1,7 +1,8 @@
 'use client'
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import type { AnalysisResponse, AnalysisState, Review } from '@/lib/voc/types'
+import type { AnalysisResponse, AnalysisState, BenchmarkDataset, EvaluationResult, HumanLabel, Review } from '@/lib/voc/types'
+import { createEmptyBenchmark, evaluate, importBenchmark } from '@/lib/voc/evaluation'
 
 interface AnalysisContextValue {
   state: AnalysisState
@@ -9,6 +10,15 @@ interface AnalysisContextValue {
   runAnalysis: (reviews: Review[]) => Promise<void>
   selectPainPoint: (id: string | null) => void
   reset: () => void
+  // Evaluation
+  benchmark: BenchmarkDataset
+  evaluationResult: EvaluationResult | null
+  lastReviewedReviews: Review[] | null
+  addHumanLabel: (label: HumanLabel) => void
+  removeHumanLabel: (reviewId: string) => void
+  importBenchmarkJson: (json: string) => boolean
+  exportBenchmarkJson: () => string
+  runEvaluation: (reviews: Review[]) => void
 }
 
 const AnalysisContext = createContext<AnalysisContextValue | null>(null)
@@ -16,10 +26,14 @@ const AnalysisContext = createContext<AnalysisContextValue | null>(null)
 export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AnalysisState>({ status: 'idle' })
   const [selectedPainPointId, setSelectedPainPointId] = useState<string | null>(null)
+  const [benchmark, setBenchmark] = useState<BenchmarkDataset>(createEmptyBenchmark())
+  const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null)
+  const [lastReviewedReviews, setLastReviewedReviews] = useState<Review[] | null>(null)
 
   const runAnalysis = useCallback(async (reviews: Review[]) => {
     setState({ status: 'loading' })
     setSelectedPainPointId(null)
+    setEvaluationResult(null)
 
     try {
       const res = await fetch('/api/analysis', {
@@ -40,7 +54,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       }
 
       const data = (await res.json()) as AnalysisResponse
-      if (!data || !Array.isArray(data.painPoints) || !Array.isArray(data.recommendations)) {
+      if (!data || !Array.isArray(data.painPoints) || !Array.isArray(data.recommendations) || !Array.isArray(data.classifications)) {
         setState({
           status: 'error',
           code: 'MALFORMED_RESPONSE',
@@ -66,11 +80,72 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const reset = useCallback(() => {
     setState({ status: 'idle' })
     setSelectedPainPointId(null)
+    setEvaluationResult(null)
   }, [])
 
+  const addHumanLabel = useCallback((label: HumanLabel) => {
+    setBenchmark((prev) => {
+      const existing = prev.labels.filter((l) => l.reviewId !== label.reviewId)
+      const labels = [...existing, label]
+      return {
+        ...prev,
+        labels,
+        updatedAt: new Date().toISOString(),
+        reviewedCount: labels.length,
+      }
+    })
+  }, [])
+
+  const removeHumanLabel = useCallback((reviewId: string) => {
+    setBenchmark((prev) => {
+      const labels = prev.labels.filter((l) => l.reviewId !== reviewId)
+      return {
+        ...prev,
+        labels,
+        updatedAt: new Date().toISOString(),
+        reviewedCount: labels.length,
+      }
+    })
+  }, [])
+
+  const importBenchmarkJson = useCallback((json: string): boolean => {
+    const imported = importBenchmark(json)
+    if (!imported) return false
+    setBenchmark(imported)
+    return true
+  }, [])
+
+  const exportBenchmarkJson = useCallback((): string => {
+    return JSON.stringify(benchmark, null, 2)
+  }, [benchmark])
+
+  const runEvaluation = useCallback((reviews: Review[]) => {
+    if (state.status !== 'success' || benchmark.labels.length === 0) {
+      setEvaluationResult(null)
+      return
+    }
+    setLastReviewedReviews(reviews)
+    const result = evaluate(state.result.classifications, benchmark, reviews)
+    setEvaluationResult(result)
+  }, [state, benchmark])
+
   const value = useMemo(
-    () => ({ state, selectedPainPointId, runAnalysis, selectPainPoint, reset }),
-    [state, selectedPainPointId, runAnalysis, selectPainPoint, reset],
+    () => ({
+      state,
+      selectedPainPointId,
+      runAnalysis,
+      selectPainPoint,
+      reset,
+      benchmark,
+      evaluationResult,
+      lastReviewedReviews,
+      addHumanLabel,
+      removeHumanLabel,
+      importBenchmarkJson,
+      exportBenchmarkJson,
+      runEvaluation,
+    }),
+    [state, selectedPainPointId, runAnalysis, selectPainPoint, reset, benchmark, evaluationResult, lastReviewedReviews, addHumanLabel, removeHumanLabel, importBenchmarkJson, exportBenchmarkJson, runEvaluation],
   )
 
   return <AnalysisContext.Provider value={value}>{children}</AnalysisContext.Provider>

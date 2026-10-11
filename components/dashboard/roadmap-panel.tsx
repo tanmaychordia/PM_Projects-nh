@@ -1,5 +1,7 @@
 'use client'
 
+import { AlertCircle } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Recommendation } from '@/lib/voc/types'
 import { useAnalysis } from './analysis-provider'
@@ -13,7 +15,7 @@ const horizons = [
 export function RoadmapPanel() {
   const { state } = useAnalysis()
 
-  const recommendations =
+  const recommendations: Recommendation[] =
     state.status === 'success' ? state.result.recommendations : []
 
   const byHorizon = (horizon: Recommendation['horizon']) =>
@@ -46,12 +48,32 @@ export function RoadmapPanel() {
                 <ul className="flex flex-1 flex-col gap-2 px-3 py-2">
                   {items.map((rec) => (
                     <li key={rec.id} className="flex flex-col gap-1">
-                      <span className="text-xs font-medium text-foreground">{rec.title}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-foreground">{rec.title}</span>
+                        {rec.status === 'needs_validation' && (
+                          <Badge variant="outline" className="shrink-0 font-normal text-[10px] text-warning-foreground">
+                            <AlertCircle className="size-2.5" aria-hidden="true" />
+                            Needs validation
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-[11px] leading-relaxed text-muted-foreground">
+                        <span className="font-medium">Problem:</span> {rec.problem}
+                      </span>
+                      <span className="text-[11px] leading-relaxed text-muted-foreground">
+                        <span className="font-medium">Action:</span> {rec.action}
+                      </span>
                       <span className="text-[11px] leading-relaxed text-muted-foreground">
                         {rec.rationale}
                       </span>
                       <span className="text-[10px] font-mono text-muted-foreground/70">
                         {rec.supportingReviewIds.length} supporting review{rec.supportingReviewIds.length === 1 ? '' : 's'}
+                      </span>
+                      <span className="text-[10px] leading-relaxed text-muted-foreground/70">
+                        <span className="font-medium">Success metric:</span> {rec.successMetric}
+                      </span>
+                      <span className="text-[10px] leading-relaxed text-muted-foreground/60">
+                        {rec.priorityRationale}
                       </span>
                     </li>
                   ))}

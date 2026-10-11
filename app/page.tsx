@@ -3,6 +3,7 @@ import { AnalysisProvider } from '@/components/dashboard/analysis-provider'
 import { AnalysisWorkspace } from '@/components/dashboard/analysis-workspace'
 import { AppHeader } from '@/components/dashboard/app-header'
 import { DataImportPanel } from '@/components/dashboard/data-import-panel'
+import { EvaluationPanel } from '@/components/dashboard/evaluation-panel'
 import { EvidencePanel } from '@/components/dashboard/evidence-panel'
 import { OverviewCards } from '@/components/dashboard/overview-cards'
 import { ReviewCollectionProvider } from '@/components/dashboard/review-collection-provider'
@@ -23,6 +24,7 @@ export default function Page() {
               <aside className="flex flex-col gap-6 lg:col-span-4 xl:col-span-3" aria-label="Data and system">
                 <DataImportPanel />
                 <SystemStatusPanel />
+                <EvaluationPanel />
               </aside>
 
               <div className="flex flex-col gap-6 lg:col-span-8 xl:col-span-9">
