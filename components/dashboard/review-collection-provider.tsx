@@ -1,17 +1,18 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ApiErrorResponse, CollectionProgress, CollectionStreamEvent, FetchReviewsSuccess } from '@/lib/voc/types'
 
 export type FetchState =
   | { status: 'idle' }
   | { status: 'loading'; startedAt: string; progress: CollectionProgress | null }
-  | { status: 'success'; result: FetchReviewsSuccess }
+  | { status: 'success'; result: FetchReviewsSuccess; source: 'fetch' | 'storage'; newReviewIds?: string[]; updatedReviewIds?: string[] }
   | { status: 'error'; code: string; message: string; at: string }
 
 interface ReviewCollectionContextValue {
   state: FetchState
   fetchReviews: () => Promise<void>
+  loadSavedReviews: () => Promise<void>
 }
 
 const ReviewCollectionContext = createContext<ReviewCollectionContextValue | null>(null)
@@ -37,6 +38,21 @@ function parseEvent(line: string): CollectionStreamEvent | null {
   }
 }
 
+interface SaveResponse {
+  saved: boolean
+  runId?: string
+  newCount: number
+  updatedCount: number
+  totalSaved: number
+}
+
+interface LoadResponse {
+  result: FetchReviewsSuccess
+  newReviewIds: string[]
+  updatedReviewIds: string[]
+  loadedFromStorage: boolean
+}
+
 export function ReviewCollectionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<FetchState>({ status: 'idle' })
   const inFlight = useRef(false)
@@ -44,6 +60,44 @@ export function ReviewCollectionProvider({ children }: { children: ReactNode }) 
   const fail = useCallback((code: string, message: string) => {
     setState({ status: 'error', code, message, at: new Date().toISOString() })
   }, [])
+
+  const loadSavedReviews = useCallback(async () => {
+    setState({ status: 'loading', startedAt: new Date().toISOString(), progress: null })
+
+    try {
+      const res = await fetch('/api/reviews/load', { cache: 'no-store' })
+
+      if (res.status === 404) {
+        setState({ status: 'idle' })
+        return
+      }
+
+      if (!res.ok) {
+        const body: unknown = await res.json().catch(() => null)
+        const error = (body as ApiErrorResponse | null)?.error
+        fail(
+          error?.code ?? `HTTP_${res.status}`,
+          error?.message ?? `The server responded with HTTP ${res.status}.`,
+        )
+        return
+      }
+
+      const data = (await res.json()) as LoadResponse
+      if (data.result && isFetchReviewsSuccess(data.result)) {
+        setState({
+          status: 'success',
+          result: data.result,
+          source: 'storage',
+          newReviewIds: data.newReviewIds,
+          updatedReviewIds: data.updatedReviewIds,
+        })
+      } else {
+        fail('LOAD_FAILED', 'Saved data was malformed. Fetch reviews again.')
+      }
+    } catch {
+      fail('NETWORK_ERROR', 'Could not reach the server to load saved reviews.')
+    }
+  }, [fail])
 
   const fetchReviews = useCallback(async () => {
     if (inFlight.current) return
@@ -87,7 +141,26 @@ export function ReviewCollectionProvider({ children }: { children: ReactNode }) 
       }
 
       if (terminal?.type === 'result' && isFetchReviewsSuccess(terminal.result)) {
-        setState({ status: 'success', result: terminal.result })
+        setState({ status: 'success', result: terminal.result, source: 'fetch' })
+
+        // Persist to database — fire and forget, but log failures
+        try {
+          const saveRes = await fetch('/api/reviews/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ result: terminal.result }),
+            cache: 'no-store',
+          })
+          if (!saveRes.ok) {
+            const saveBody = (await saveRes.json().catch(() => null)) as ApiErrorResponse | null
+            console.error('[voc] save failed:', saveBody?.error?.code, saveBody?.error?.message)
+          } else {
+            const saveData = (await saveRes.json()) as SaveResponse
+            console.log(`[voc] saved ${saveData.totalSaved} reviews (${saveData.newCount} new, ${saveData.updatedCount} updated)`)
+          }
+        } catch (saveErr) {
+          console.error('[voc] save request failed:', saveErr)
+        }
       } else if (terminal?.type === 'error') {
         fail(terminal.error.code, terminal.error.message)
       } else {
@@ -100,7 +173,12 @@ export function ReviewCollectionProvider({ children }: { children: ReactNode }) 
     }
   }, [fail])
 
-  const value = useMemo(() => ({ state, fetchReviews }), [state, fetchReviews])
+  // Load saved reviews on mount so data survives page refresh
+  useEffect(() => {
+    loadSavedReviews()
+  }, [loadSavedReviews])
+
+  const value = useMemo(() => ({ state, fetchReviews, loadSavedReviews }), [state, fetchReviews, loadSavedReviews])
   return <ReviewCollectionContext.Provider value={value}>{children}</ReviewCollectionContext.Provider>
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, CornerDownRight, Inbox, Star, ThumbsUp } from 'lucide-react'
+import { AlertCircle, CornerDownRight, Database, Inbox, Sparkles, Star, ThumbsUp } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -24,11 +24,19 @@ function RatingStars({ rating }: { rating: number }) {
   )
 }
 
-function ReviewRow({ review }: { review: Review }) {
+function ReviewRow({ review, isNew }: { review: Review; isNew?: boolean }) {
   return (
     <li className="grid grid-cols-[180px_1fr] gap-4 px-4 py-3.5">
       <div className="flex min-w-0 flex-col gap-1.5 text-xs">
-        <RatingStars rating={review.rating} />
+        <div className="flex items-center gap-1.5">
+          <RatingStars rating={review.rating} />
+          {isNew && (
+            <span className="inline-flex items-center gap-0.5 rounded-sm bg-success/10 px-1 py-0.5 text-[10px] font-medium text-success" title="Newly saved in this collection run">
+              <Sparkles className="size-2.5" aria-hidden="true" />
+              new
+            </span>
+          )}
+        </div>
         <time dateTime={review.postedAt} className="text-muted-foreground">
           {dateFormatter.format(new Date(review.postedAt))} UTC
         </time>
@@ -85,6 +93,9 @@ function EmptyState({ title, description, icon: Icon = Inbox }: { title: string;
 export function ReviewsPanel() {
   const { state } = useReviewCollection()
   const result = state.status === 'success' ? state.result : null
+  const fromStorage = state.status === 'success' && state.source === 'storage'
+  const newReviewIds = state.status === 'success' && state.newReviewIds ? new Set(state.newReviewIds) : null
+  const newCount = newReviewIds?.size ?? 0
 
   return (
     <Card className="gap-0 py-0" aria-busy={state.status === 'loading'}>
@@ -92,16 +103,27 @@ export function ReviewsPanel() {
         <div className="flex flex-col gap-1">
           <CardTitle className="text-sm font-semibold">Collected reviews</CardTitle>
           <CardDescription className="text-xs">
-            Verbatim Google Play reviews with source IDs. Text is shown exactly as returned.
+            {fromStorage
+              ? 'Loaded from database. Fetch again to pull fresh reviews from Google Play.'
+              : 'Verbatim Google Play reviews with source IDs. Text is shown exactly as returned.'}
           </CardDescription>
         </div>
         {result && (
           <div className="flex shrink-0 items-center gap-1.5">
+            {fromStorage && (
+              <Badge variant="outline" className="font-mono text-[11px] text-primary">
+                <Database className="size-3" aria-hidden="true" />
+                stored
+              </Badge>
+            )}
+            {!fromStorage && newCount > 0 && (
+              <Badge variant="outline" className="font-mono text-[11px] text-success">
+                <Sparkles className="size-3" aria-hidden="true" />
+                {newCount} new
+              </Badge>
+            )}
             <Badge variant="outline" className="font-mono text-[11px]">
-              {result.fetchedCount} fetched
-            </Badge>
-            <Badge variant="outline" className="font-mono text-[11px]">
-              {result.retainedCount} retained
+              {result.retainedCount} unique
             </Badge>
             <Badge variant="outline" className="font-mono text-[11px] uppercase">
               {result.storefront.country} · {result.storefront.language}
@@ -113,8 +135,8 @@ export function ReviewsPanel() {
       <CardContent className="p-0">
         {state.status === 'idle' && (
           <EmptyState
-            title="No reviews collected yet"
-            description="Use “Fetch reviews” to pull the latest reviews for com.snabbit.customer from the Indian Google Play storefront."
+            title="No reviews yet"
+            description="Use “Fetch reviews” to pull reviews for com.snabbit.customer from the Indian Google Play storefront. Saved reviews will load here automatically after a page refresh."
           />
         )}
 
@@ -152,9 +174,9 @@ export function ReviewsPanel() {
         )}
 
         {result && result.reviews.length > 0 && (
-          <ul className="max-h-[640px] divide-y overflow-y-auto" aria-label={`${result.retainedCount} collected reviews`}>
+          <ul className="max-h-[640px] divide-y overflow-y-auto" aria-label={`${result.retainedCount} reviews`}>
             {result.reviews.map((review) => (
-              <ReviewRow key={review.reviewId} review={review} />
+              <ReviewRow key={review.reviewId} review={review} isNew={newReviewIds?.has(review.reviewId)} />
             ))}
           </ul>
         )}

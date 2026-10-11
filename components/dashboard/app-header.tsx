@@ -39,9 +39,18 @@ function DataStatusPill() {
 
   const view = {
     idle: { label: 'No reviews loaded', tone: 'warning' },
-    loading: { label: 'Fetching reviews…', tone: 'neutral' },
+    loading: {
+      label: state.status === 'loading' && state.progress
+        ? 'Fetching from Google Play…'
+        : 'Loading reviews…',
+      tone: 'neutral',
+    },
     success: {
-      label: state.status === 'success' ? `${state.result.retainedCount} reviews loaded` : '',
+      label: state.status === 'success'
+        ? state.source === 'storage'
+          ? `${state.result.retainedCount} reviews (stored)`
+          : `${state.result.retainedCount} reviews loaded`
+        : '',
       tone: 'success',
     },
     error: { label: 'Fetch failed', tone: 'error' },
