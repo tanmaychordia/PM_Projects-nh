@@ -2,7 +2,6 @@ import { Analytics } from '@vercel/analytics/next'
 import { AnalysisProvider } from '@/components/dashboard/analysis-provider'
 import { AnalysisWorkspace } from '@/components/dashboard/analysis-workspace'
 import { AppHeader } from '@/components/dashboard/app-header'
-import { AuditPanel } from '@/components/dashboard/audit-panel'
 import { DataImportPanel } from '@/components/dashboard/data-import-panel'
 import { EvaluationPanel } from '@/components/dashboard/evaluation-panel'
 import { EvidencePanel } from '@/components/dashboard/evidence-panel'
@@ -26,7 +25,6 @@ export default function Page() {
                 <DataImportPanel />
                 <SystemStatusPanel />
                 <EvaluationPanel />
-                <AuditPanel />
               </aside>
 
               <div className="flex flex-col gap-6 lg:col-span-8 xl:col-span-9">
