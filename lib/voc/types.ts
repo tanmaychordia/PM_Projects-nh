@@ -361,3 +361,140 @@ export type CollectionStreamEvent =
   | { type: 'progress'; progress: CollectionProgress }
   | { type: 'result'; result: FetchReviewsSuccess }
   | { type: 'error'; error: { code: FetchReviewsErrorCode; message: string; retryAfterSeconds?: number } }
+
+// ---------------------------------------------------------------------------
+// Audit package types
+// ---------------------------------------------------------------------------
+
+export type ParentCategoryId =
+  | 'app_digital_experience'
+  | 'service_delivery_professional_conduct'
+  | 'payments_pricing_refunds'
+  | 'customer_support_resolution'
+  | 'availability_coverage_scheduling'
+
+export interface TaxonomyChildDefinition {
+  id: CategoryId
+  label: string
+  description: string
+  inclusionCriteria: string[]
+  exclusionCriteria: string[]
+  parent: ParentCategoryId
+}
+
+export interface TaxonomyParentDefinition {
+  id: ParentCategoryId
+  label: string
+  description: string
+}
+
+export interface TaxonomyExport {
+  version: string
+  generatedAt: string
+  parents: TaxonomyParentDefinition[]
+  children: TaxonomyChildDefinition[]
+  mappingFromExistingLabels: { existingId: CategoryId; parentId: ParentCategoryId; note: string }[]
+}
+
+export type SelectionReason =
+  | 'random'
+  | 'multi_category'
+  | 'low_confidence'
+  | 'unclear'
+  | 'evidence_relevance_failed'
+  | 'boundary_exposing'
+
+export interface AuditSampleItem {
+  reviewId: string
+  selectionReasons: SelectionReason[]
+}
+
+export interface AuditSample {
+  reviewIds: AuditSampleItem[]
+  seed: number
+  method: string
+  targetSize: number
+  composition: Record<string, number>
+  isRepresentative: false
+}
+
+export type ProposalSentiment = 'positive' | 'negative' | 'mixed' | 'neutral' | 'unclear'
+
+export interface AiProposal {
+  reviewId: string
+  sourceTextHash: string
+  parentLabels: ParentCategoryId[]
+  childLabels: CategoryId[]
+  primaryIssue: string | null
+  sentiment: ProposalSentiment
+  evidenceExcerpts: { label: CategoryId; excerpt: string }[]
+  rationale: string
+  uncertain: boolean
+  uncertainReason: string | null
+  hasMultipleIssues: boolean
+  taxonomyVersion: string
+  modelId: string
+  promptVersion: string
+  generatedAt: string
+}
+
+export interface ProposalValidationResult {
+  reviewId: string
+  valid: boolean
+  errors: string[]
+  rejectedLabels: string[]
+  rejectedExcerpts: string[]
+}
+
+export interface UnresolvedItem {
+  reviewId: string
+  type: 'proposal_failed' | 'proposal_incomplete' | 'validation_failed' | 'missing_field'
+  detail: string
+}
+
+export interface AuditManifest {
+  schemaVersion: 1
+  exportTimestamp: string
+  reviewCount: number
+  sampledCount: number
+  taxonomyVersion: string
+  samplingMethod: string
+  samplingSeed: number
+  modelId: string | null
+  promptVersion: string
+  completionStatus: 'complete' | 'partial' | 'no_ai_provider'
+  proposalCount: number
+  validationErrorCount: number
+  unresolvedCount: number
+}
+
+export interface AuditPackage {
+  manifest: AuditManifest
+  taxonomy: TaxonomyExport
+  allReviews: {
+    reviewId: string
+    rating: StarRating
+    title: string | null
+    text: string | null
+    postedAt: string
+    appVersion: string | null
+    source: string
+    collectedVia: string
+  }[]
+  baselinePredictions: ReviewClassification[]
+  auditSample: AuditSample
+  aiProposals: AiProposal[]
+  validationResults: ProposalValidationResult[]
+  unresolvedItems: UnresolvedItem[]
+  humanVerifiedLabels: { reviewId: string; status: 'unverified' }[]
+}
+
+export type AuditErrorCode =
+  | 'METHOD_NOT_ALLOWED'
+  | 'NO_REVIEWS'
+  | 'NO_ANALYSIS'
+  | 'PROVIDER_NOT_CONFIGURED'
+  | 'PROVIDER_ERROR'
+  | 'RATE_LIMITED'
+  | 'INVALID_RESPONSE'
+  | 'INTERNAL_ERROR'
