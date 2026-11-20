@@ -1,111 +1,130 @@
 'use client'
 
-import { CheckCircle2, HelpCircle, Quote, ShieldCheck } from 'lucide-react'
+import { useMemo } from 'react'
+import { Quote } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { buildTaxonomyExport } from '@/lib/voc/taxonomy-export'
+import type { Review } from '@/lib/voc/types'
 import { useAnalysis } from './analysis-provider'
 import { useReviewCollection } from './review-collection-provider'
 
+const dateFormatter = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
+
 export function EvidencePanel() {
-  const { state, selectedPainPointId } = useAnalysis()
+  const { state, selectedCategoryId, selectCategory } = useAnalysis()
   const { state: collectionState } = useReviewCollection()
 
   const reviews = collectionState.status === 'success' ? collectionState.result.reviews : []
-  const reviewRatingMap = new Map(reviews.map((r) => [r.reviewId, r.rating]))
+  const taxonomy = useMemo(() => buildTaxonomyExport(), [])
 
-  const painPoint =
-    state.status === 'success'
-      ? state.result.painPoints.find((pp) => pp.id === selectedPainPointId)
+  const selectedCategory =
+    state.status === 'success' && selectedCategoryId
+      ? taxonomy.children.find((c) => c.id === selectedCategoryId) ?? null
       : null
 
-  const fields = ['Review ID', 'Verbatim quote', 'Rating', 'Integrity', 'Relevance']
+  // Reviews assigned to the selected child category (primary or secondary),
+  // based on the classifier output already in the dataset.
+  const matchedReviews: Review[] = useMemo(() => {
+    if (state.status !== 'success' || !selectedCategoryId) return []
+    const byId = new Map(reviews.map((r) => [r.reviewId, r]))
+    return state.result.classifications
+      .filter(
+        (c) =>
+          c.primaryCategory === selectedCategoryId ||
+          c.secondaryCategories.includes(selectedCategoryId),
+      )
+      .map((c) => byId.get(c.reviewId))
+      .filter((r): r is Review => Boolean(r))
+  }, [state, selectedCategoryId, reviews])
+
+  const fields = ['Review ID', 'Verbatim text', 'Rating', 'Date']
 
   return (
     <Card className="gap-0 py-0">
       <CardHeader className="border-b py-4">
         <CardTitle className="text-sm font-semibold">Evidence</CardTitle>
         <CardDescription className="text-xs">
-          {painPoint
-            ? `${painPoint.theme} — ${painPoint.evidence.length} quote${painPoint.evidence.length === 1 ? '' : 's'}`
-            : 'Verbatim quotes, each traceable to a Google Play review ID'}
+          {selectedCategory
+            ? `${selectedCategory.label} — ${matchedReviews.length} review${matchedReviews.length === 1 ? '' : 's'}`
+            : 'Select a child category above to see its reviews'}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col px-0">
-        {painPoint && painPoint.evidence.length > 0 ? (
-          <>
-            <div className="grid grid-cols-[7rem_1fr_3rem_4rem_4.5rem] gap-3 border-b bg-surface px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {fields.map((field) => (
-                <span key={field}>{field}</span>
-              ))}
-            </div>
-            <ul className="max-h-[400px] divide-y overflow-y-auto">
-              {painPoint.evidence.map((eq) => {
-                const rating = reviewRatingMap.get(eq.reviewId)
-                return (
+        {selectedCategory ? (
+          matchedReviews.length > 0 ? (
+            <>
+              <div className="grid grid-cols-[7rem_1fr_3rem_9rem] gap-3 border-b bg-surface px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {fields.map((field) => (
+                  <span key={field}>{field}</span>
+                ))}
+              </div>
+              <ul className="max-h-[400px] divide-y overflow-y-auto">
+                {matchedReviews.map((review) => (
                   <li
-                    key={`${eq.reviewId}-${eq.quote.slice(0, 20)}`}
-                    className="grid grid-cols-[7rem_1fr_3rem_4rem_4.5rem] gap-3 px-4 py-3 text-xs"
+                    key={review.reviewId}
+                    className="grid grid-cols-[7rem_1fr_3rem_9rem] gap-3 px-4 py-3 text-xs"
                   >
-                    <span className="truncate font-mono text-[11px] text-muted-foreground" title={eq.reviewId}>
-                      {eq.reviewId}
+                    <span
+                      className="truncate font-mono text-[11px] text-muted-foreground"
+                      title={review.reviewId}
+                    >
+                      {review.reviewId}
                     </span>
                     <blockquote className="whitespace-pre-line leading-relaxed text-foreground">
-                      {eq.quote}
+                      {review.text?.trim() || review.title?.trim() || '—'}
                     </blockquote>
                     <span className="font-mono text-muted-foreground">
-                      {rating ?? '—'}
-                      {rating ? '★' : ''}
+                      {review.rating}★
                     </span>
-                    {eq.verified ? (
-                      <span className="inline-flex items-center gap-1 text-success" title="Quote is an exact substring of the review text">
-                        <ShieldCheck className="size-3" aria-hidden="true" />
-                        <span className="text-[11px]">Yes</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-muted-foreground" title="Quote does not pass exact-string verification">
-                        <span className="text-[11px]">No</span>
-                      </span>
-                    )}
-                    {eq.relevant ? (
-                      <span className="inline-flex items-center gap-1 text-success" title={eq.verificationNote}>
-                        <CheckCircle2 className="size-3" aria-hidden="true" />
-                        <span className="text-[11px]">Yes</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-warning-foreground" title={eq.verificationNote}>
-                        <HelpCircle className="size-3" aria-hidden="true" />
-                        <span className="text-[11px]">Review</span>
-                      </span>
-                    )}
+                    <time
+                      dateTime={review.postedAt}
+                      className="text-[11px] text-muted-foreground"
+                    >
+                      {dateFormatter.format(new Date(review.postedAt))} UTC
+                    </time>
                   </li>
-                )
-              })}
-            </ul>
-            <div className="border-t px-4 py-2.5">
-              <p className="text-[10px] leading-relaxed text-muted-foreground">
-                <span className="font-medium">Integrity</span> = quote is an exact substring of the review.
-                <span className="font-medium"> Relevance</span> = quote contextually supports this category.
-                A quote can be textually valid but not relevant — those are marked "Review" and should be checked manually.
+                ))}
+              </ul>
+              <div className="border-t px-4 py-2.5">
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  Reviews matched via the classifier's primary or secondary category assignments.
+                  Labels are overlapping — a review can appear in multiple categories.
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+              <Quote className="size-4 text-muted-foreground/60" aria-hidden="true" />
+              <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">
+                No reviews matched "{selectedCategory.label}". Try another child category, or
+                collect more reviews.
               </p>
             </div>
-            {painPoint.scoreBreakdown && (
-              <div className="border-t px-4 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
-                <span className="font-medium">Scoring rationale:</span> {painPoint.scoreBreakdown.rationale}
-              </div>
-            )}
-            {painPoint.confidenceBasis && (
-              <div className="border-t px-4 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
-                <span className="font-medium">Confidence basis:</span> {painPoint.confidenceBasis}
-              </div>
-            )}
-          </>
+          )
         ) : (
           <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
             <Quote className="size-4 text-muted-foreground/60" aria-hidden="true" />
             <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">
-              {state.status === 'success' && state.result.painPoints.length > 0
-                ? 'Select a pain point above to inspect its supporting quotes. Integrity and relevance are shown separately — exact string matching does not prove semantic relevance.'
-                : 'Run analysis and select a pain point to inspect its supporting quotes. Integrity and relevance are shown separately — exact string matching does not prove semantic relevance.'}
+              {state.status === 'success'
+                ? 'Select a child category above to inspect its reviews here.'
+                : 'Run analysis, then select a child category to inspect its reviews here.'}
             </p>
+            {selectedCategoryId === null && state.status !== 'success' && reviews.length > 0 && (
+              <p className="text-[11px] text-muted-foreground/80">
+                No analysis run yet.
+              </p>
+            )}
+          </div>
+        )}
+        {selectedCategoryId !== null && (
+          <div className="border-t px-4 py-2.5">
+            <button
+              type="button"
+              onClick={() => selectCategory(null)}
+              className="text-[11px] font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Clear selection
+            </button>
           </div>
         )}
       </CardContent>

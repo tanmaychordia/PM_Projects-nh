@@ -32,10 +32,8 @@ export default function Page() {
               <div className="flex flex-col gap-6 lg:col-span-8 xl:col-span-9">
                 <ReviewsPanel />
                 <AnalysisWorkspace />
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                  <EvidencePanel />
-                  <RoadmapPanel />
-                </div>
+                <EvidencePanel />
+                <RoadmapPanel />
               </div>
             </div>
           </main>

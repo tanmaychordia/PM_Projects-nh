@@ -7,31 +7,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { cn } from '@/lib/utils'
-import type { Confidence } from '@/lib/voc/types'
 import { useAnalysis } from './analysis-provider'
 import { AnalysisPipeline } from './analysis-pipeline'
+import { CategoryExplorer } from './category-explorer'
 import { useReviewCollection } from './review-collection-provider'
-
-const painPointColumns = [
-  { label: 'Rank', className: 'w-14' },
-  { label: 'Theme / pain point', className: '' },
-  { label: 'Reviews', className: 'w-20 text-right' },
-  { label: 'Share of neg.', className: 'w-28 text-right' },
-  { label: 'Confidence', className: 'w-24' },
-  { label: 'Evidence', className: 'w-24 text-right' },
-]
-
-const confidenceStyles: Record<Confidence, string> = {
-  high: 'bg-success/10 text-success',
-  medium: 'bg-warning/10 text-warning-foreground',
-  low: 'bg-muted text-muted-foreground',
-}
 
 export function AnalysisWorkspace() {
   const { state: collectionState } = useReviewCollection()
-  const { state: analysisState, selectedPainPointId, runAnalysis, selectPainPoint } = useAnalysis()
+  const { state: analysisState, runAnalysis } = useAnalysis()
 
   const reviews = collectionState.status === 'success' ? collectionState.result.reviews : []
   const hasReviews = reviews.length > 0
@@ -164,8 +147,8 @@ export function AnalysisWorkspace() {
           </div>
         )}
 
-        {/* Success with results */}
-        {analysisState.status === 'success' && analysisState.result.painPoints.length > 0 && (
+        {/* Success with classifications: category explorer */}
+        {analysisState.status === 'success' && analysisState.result.classifications.length > 0 && (
           <>
             {/* Meta stats */}
             {meta && (
@@ -179,74 +162,10 @@ export function AnalysisWorkspace() {
               </div>
             )}
 
-            <Table>
-              <caption className="sr-only">Ranked pain points</caption>
-              <TableHeader>
-                <TableRow className="bg-surface hover:bg-surface">
-                  {painPointColumns.map((col) => (
-                    <TableHead
-                      key={col.label}
-                      className={`h-9 px-4 text-[11px] font-medium uppercase tracking-wide text-muted-foreground ${col.className}`}
-                    >
-                      {col.label}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {analysisState.result.painPoints.map((pp) => (
-                  <TableRow
-                    key={pp.id}
-                    onClick={() => selectPainPoint(selectedPainPointId === pp.id ? null : pp.id)}
-                    className={cn(
-                      'cursor-pointer',
-                      selectedPainPointId === pp.id && 'bg-primary/5',
-                    )}
-                    aria-selected={selectedPainPointId === pp.id}
-                  >
-                    <TableCell className="px-4 py-3 text-sm font-mono tabular-nums text-muted-foreground">
-                      {pp.rank}
-                    </TableCell>
-                    <TableCell className="px-4 py-3">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-medium text-foreground">{pp.theme}</span>
-                        <span className="text-[11px] leading-relaxed text-muted-foreground">
-                          {pp.summary}
-                        </span>
-                        {pp.scoreBreakdown && (
-                          <span className="text-[10px] font-mono text-muted-foreground/70">
-                            Score {pp.score}/100 · freq {pp.scoreBreakdown.frequencyPoints} · neg {pp.scoreBreakdown.negativityPoints} · recency {pp.scoreBreakdown.recencyPoints} · evidence {pp.scoreBreakdown.evidencePoints}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-right font-mono text-sm tabular-nums">
-                      {pp.reviewCount}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
-                      {(pp.shareOfNegative * 100).toFixed(0)}%
-                    </TableCell>
-                    <TableCell className="px-4 py-3">
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-4xl px-2 py-0.5 text-[11px] font-medium',
-                          confidenceStyles[pp.confidence],
-                        )}
-                      >
-                        {pp.confidence}
-                      </span>
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
-                      {pp.evidence.filter((e) => e.relevant).length}/{pp.evidence.length} quotes
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <CategoryExplorer />
 
             {/* Taxonomy + scoring methodology */}
-            {analysisState.status === 'success' && (
-              <div className="flex flex-col gap-3 border-t px-4 py-3">
+            <div className="flex flex-col gap-3 border-t px-4 py-3">
                 <details className="text-[11px]">
                   <summary className="cursor-pointer font-medium text-foreground">Taxonomy & category definitions</summary>
                   <ul className="mt-2 flex flex-col gap-1 text-muted-foreground">
@@ -265,12 +184,11 @@ export function AnalysisWorkspace() {
                   Labels are overlapping — a review may appear in multiple themes. Share of negative
                   is not mutually exclusive. Confidence is a heuristic label, not a statistical measure.
                 </p>
-              </div>
-            )}
+            </div>
 
             <div className="flex items-center justify-between border-t px-4 py-2.5">
               <span className="text-[11px] text-muted-foreground">
-                Click a row to inspect evidence in the Evidence panel.
+                Select a child category to inspect its reviews in the Evidence panel.
               </span>
               <Button onClick={() => runAnalysis(reviews)} variant="ghost" size="sm">
                 Re-run

@@ -1,14 +1,14 @@
 'use client'
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import type { AnalysisResponse, AnalysisState, BenchmarkDataset, EvaluationResult, HumanLabel, Review } from '@/lib/voc/types'
+import type { AnalysisResponse, AnalysisState, BenchmarkDataset, CategoryId, EvaluationResult, HumanLabel, Review } from '@/lib/voc/types'
 import { createEmptyBenchmark, evaluate, importBenchmark } from '@/lib/voc/evaluation'
 
 interface AnalysisContextValue {
   state: AnalysisState
-  selectedPainPointId: string | null
+  selectedCategoryId: CategoryId | null
   runAnalysis: (reviews: Review[]) => Promise<void>
-  selectPainPoint: (id: string | null) => void
+  selectCategory: (id: CategoryId | null) => void
   reset: () => void
   // Evaluation
   benchmark: BenchmarkDataset
@@ -25,14 +25,14 @@ const AnalysisContext = createContext<AnalysisContextValue | null>(null)
 
 export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AnalysisState>({ status: 'idle' })
-  const [selectedPainPointId, setSelectedPainPointId] = useState<string | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryId | null>(null)
   const [benchmark, setBenchmark] = useState<BenchmarkDataset>(createEmptyBenchmark())
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null)
   const [lastReviewedReviews, setLastReviewedReviews] = useState<Review[] | null>(null)
 
   const runAnalysis = useCallback(async (reviews: Review[]) => {
     setState({ status: 'loading' })
-    setSelectedPainPointId(null)
+    setSelectedCategoryId(null)
     setEvaluationResult(null)
 
     try {
@@ -73,13 +73,13 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const selectPainPoint = useCallback((id: string | null) => {
-    setSelectedPainPointId(id)
+  const selectCategory = useCallback((id: CategoryId | null) => {
+    setSelectedCategoryId(id)
   }, [])
 
   const reset = useCallback(() => {
     setState({ status: 'idle' })
-    setSelectedPainPointId(null)
+    setSelectedCategoryId(null)
     setEvaluationResult(null)
   }, [])
 
@@ -132,9 +132,9 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       state,
-      selectedPainPointId,
+      selectedCategoryId,
       runAnalysis,
-      selectPainPoint,
+      selectCategory,
       reset,
       benchmark,
       evaluationResult,
@@ -145,7 +145,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       exportBenchmarkJson,
       runEvaluation,
     }),
-    [state, selectedPainPointId, runAnalysis, selectPainPoint, reset, benchmark, evaluationResult, lastReviewedReviews, addHumanLabel, removeHumanLabel, importBenchmarkJson, exportBenchmarkJson, runEvaluation],
+    [state, selectedCategoryId, runAnalysis, selectCategory, reset, benchmark, evaluationResult, lastReviewedReviews, addHumanLabel, removeHumanLabel, importBenchmarkJson, exportBenchmarkJson, runEvaluation],
   )
 
   return <AnalysisContext.Provider value={value}>{children}</AnalysisContext.Provider>
