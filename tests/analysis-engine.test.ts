@@ -421,6 +421,62 @@ function makeReview(partial: Partial<Review>): Review {
   assert(all4.includes('booking_availability'), `R11 service: cancelled booking → booking_availability (got ${all4.join(', ')})`)
 }
 
+// R12 (Experiment A): negated positives must not count as positive sentiment
+{
+  // "not good" must be negative, not mixed
+  const r1 = makeReview({ reviewId: 'r12a', rating: 1, text: 'The customer service is not good. They close tickets without resolving anything.' })
+  assert(classifyReview(r1).sentiment === 'negative', `R12a: "not good" → negative (got ${classifyReview(r1).sentiment})`)
+
+  // "hasnt started on time" must not trigger positive via "on time"
+  const r2 = makeReview({ reviewId: 'r12b', rating: 2, text: 'terrible experience of late. the service hasnt started on time for the last few booking.' })
+  assert(classifyReview(r2).sentiment === 'negative', `R12b: "hasnt started on time" → negative (got ${classifyReview(r2).sentiment})`)
+
+  // Contextual complaint phrases feed sentiment
+  const r3 = makeReview({ reviewId: 'r12c', rating: 2, text: 'The app service is good but u will never find a slot for the booking.' })
+  const s3 = classifyReview(r3).sentiment
+  assert(s3 === 'negative' || s3 === 'mixed', `R12c: availability complaint raises sentiment above positive (got ${s3})`)
+}
+
+// R13 (Experiment A): clause dominance — lopsided polarity is not mixed
+{
+  // 3 negative clauses vs 1 positive clause → negative
+  const r1 = makeReview({ reviewId: 'r13a', rating: 3, text: 'Helpful during urgent situations, but the overall service is disappointing. Many staff members lack the necessary skills. It feels like a waste of money. They offer only a nominal refund.' })
+  assert(classifyReview(r1).sentiment === 'negative', `R13a: 3:1 negative clause dominance → negative (got ${classifyReview(r1).sentiment})`)
+
+  // Balanced clauses stay mixed
+  const r2 = makeReview({ reviewId: 'r13b', rating: 3, text: 'Some professionals are good. Others are rude. Booking is easy to use. But support never responds.' })
+  assert(classifyReview(r2).sentiment === 'mixed', `R13b: balanced clauses stay mixed (got ${classifyReview(r2).sentiment})`)
+}
+
+// R14 (Experiment B): guarded service-delivery additions
+{
+  const r1 = makeReview({ reviewId: 'r14a', rating: 1, text: 'horrible customer support. maid does not come or leaves in the middle. no refund for it.' })
+  const c1 = classifyReview(r1)
+  const all1 = [c1.primaryCategory, ...c1.secondaryCategories]
+  assert(all1.includes('service_delivery'), `R14a: "does not come"/"leaves in the middle" → service_delivery (got ${all1.join(', ')})`)
+
+  const r2 = makeReview({ reviewId: 'r14b', rating: 3, text: 'Many staff members lack the necessary skills and expertise. Some professionals needs lot of training before they can start work.' })
+  const c2 = classifyReview(r2)
+  const all2 = [c2.primaryCategory, ...c2.secondaryCategories]
+  assert(all2.includes('service_delivery'), `R14b: "lack skills"/"needs training" → service_delivery (got ${all2.join(', ')})`)
+}
+
+// R15 (Experiment B): failed app activation, especially with payment context
+{
+  const r1 = makeReview({ reviewId: 'r15a', rating: 1, text: 'I paid for my booking pass for 3 visits but it has not got activated even though payment was successful.' })
+  const c1 = classifyReview(r1)
+  const all1 = [c1.primaryCategory, ...c1.secondaryCategories]
+  assert(all1.includes('app_functionality'), `R15a: failed activation → app_functionality (got ${all1.join(', ')})`)
+}
+
+// R16 (Experiment B): prepaid booking with no-show context
+{
+  const r1 = makeReview({ reviewId: 'r16a', rating: 1, text: 'Prepaid a booking, but nobody showed up! Money deducted, service undelivered.' })
+  const c1 = classifyReview(r1)
+  const all1 = [c1.primaryCategory, ...c1.secondaryCategories]
+  assert(all1.includes('booking_availability'), `R16a: prepaid booking no-show → booking_availability (got ${all1.join(', ')})`)
+}
+
 // ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------

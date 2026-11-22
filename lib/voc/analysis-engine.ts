@@ -59,8 +59,8 @@ const TAXONOMY: CategoryRule[] = [
     id: 'service_delivery',
     label: 'Service delivery & reliability',
     summary: 'Late arrival, no-show, cancellation, incomplete work, poor cleaning quality, or unprofessional conduct.',
-    include: ['late', 'delayed', 'delay', 'no show', 'no-show', "didn't come", 'did not come', "didn't arrive", 'did not arrive', 'cancelled', 'canceled', 'incomplete', 'not clean', 'dirty', 'poor service', 'bad service', 'unprofessional', 'rude', 'bad behavior', 'behaviour', 'not satisfied', 'unsatisfied', 'poor quality', 'bad quality', 'worst service', 'terrible service', 'undelivered', 'not delivered', 'did not allot', 'no expert', 'no experts', 'needs training', 'need training'],
-    contextReq: ['late', 'delay', 'no show', 'no-show', "didn't come", 'did not come', "didn't arrive", 'did not arrive', 'cancelled', 'canceled', 'incomplete', 'not clean', 'dirty', 'poor service', 'bad service', 'unprofessional', 'rude', 'bad behavior', 'behaviour', 'not satisfied', 'unsatisfied', 'poor quality', 'bad quality', 'worst service', 'terrible service', 'cleaning', 'worker', 'maid', 'house help', 'househelp', 'staff', 'professional', 'service'],
+    include: ['late', 'delayed', 'delay', 'no show', 'no-show', "didn't come", 'did not come', 'does not come', "doesn't come", 'did not arrive', 'does not arrive', "didn't arrive", 'leaves in the middle', 'left in the middle', 'cancelled', 'canceled', 'incomplete', 'not clean', 'dirty', 'poor service', 'bad service', 'unprofessional', 'rude', 'bad behavior', 'behaviour', 'not satisfied', 'unsatisfied', 'poor quality', 'bad quality', 'worst service', 'terrible service', 'undelivered', 'not delivered', 'did not allot', 'no expert', 'no experts', 'needs training', 'need training', 'lot of training', 'lack'],
+    contextReq: ['late', 'delay', 'no show', 'no-show', "didn't come", 'did not come', 'does not come', "doesn't come", 'did not arrive', 'does not arrive', "didn't arrive", 'leaves in the middle', 'left in the middle', 'cancelled', 'canceled', 'incomplete', 'not clean', 'dirty', 'poor service', 'bad service', 'unprofessional', 'rude', 'bad behavior', 'behaviour', 'not satisfied', 'unsatisfied', 'poor quality', 'bad quality', 'worst service', 'terrible service', 'cleaning', 'worker', 'maid', 'house help', 'househelp', 'staff', 'professional', 'service', 'helper', 'lady', 'skill', 'skills', 'expertise', 'training'],
     exclude: ['stolen', 'theft', 'anklet', 'jewellery', 'jewelry'],
     excludeUnless: ['late', 'delayed', 'no show', 'no-show', 'cancelled', 'canceled', 'incomplete', 'not clean', 'dirty', 'unprofessional', 'rude'],
     allowPositive: false,
@@ -78,7 +78,7 @@ const TAXONOMY: CategoryRule[] = [
     id: 'booking_availability',
     label: 'Booking & availability',
     summary: 'No slots available, booking failures, incorrect availability, or booking confirmation problems.',
-    include: ['sold out', 'no slot', 'no slots', 'not available', 'unavailable', 'cannot book', "can't book", "can't even book", 'cannot even book', "couldn't book", 'could not book', 'booking failed', 'no availability', 'slots full', 'slot full', 'slot is full', 'slots are full', 'all slots are booked', 'full booking', 'fully booked', 'not allowed to book', 'not allow to book', 'did not allow to book', 'slot opens randomly', 'slots open randomly', 'slots are difficult', 'availability of', 'difficult to book', 'hard to book', 'cancelled', 'canceled', 'no expert', 'no experts', 'experts are not available', 'expert not available', 'cannot service', 'not serviceable'],
+    include: ['sold out', 'no slot', 'no slots', 'not available', 'unavailable', 'cannot book', "can't book", "can't even book", 'cannot even book', "couldn't book", 'could not book', 'booking failed', 'no availability', 'slots full', 'slot full', 'slot is full', 'slots are full', 'all slots are booked', 'full booking', 'fully booked', 'not allowed to book', 'not allow to book', 'did not allow to book', 'slot opens randomly', 'slots open randomly', 'slots are difficult', 'availability of', 'difficult to book', 'hard to book', 'cancelled', 'canceled', 'no expert', 'no experts', 'experts are not available', 'expert not available', 'cannot service', 'not serviceable', 'prepaid', 'pre paid'],
     contextReq: ['slot', 'slots', 'booking', 'book', 'availability', 'available', 'sold out', 'schedule', 'appointment', 'appointments', 'expert', 'experts', 'cancel', 'cancelled', 'canceled'],
     exclude: ['crash', 'freeze', 'login', 'otp', 'password'],
     excludeUnless: ['sold out', 'no slot', 'no slots', 'not available', 'unavailable', 'cannot book', "can't book", 'booking failed', 'no availability'],
@@ -153,8 +153,8 @@ const TAXONOMY: CategoryRule[] = [
     id: 'app_functionality',
     label: 'App functionality & performance',
     summary: 'Crashes, freezes, slow loading, navigation failures, or broken app features.',
-    include: ['crash', 'crashes', 'crashed', 'crashing', 'freeze', 'freezes', 'frozen', 'freezing', 'hang', 'hangs', 'hanging', 'unresponsive', 'force close', 'force stop', 'not responding', 'slow', 'lag', 'laggy', 'lagging', 'loading', 'load time', 'takes forever', 'bug', 'buggy', 'glitch', 'broken', 'not working', "doesn't work", 'does not work', 'error', 'interface', 'ui', 'navigation', 'navigate', 'design', 'confusing', 'hard to use'],
-    contextReq: ['crash', 'crashing', 'freeze', 'freezing', 'hang', 'unresponsive', 'force close', 'not responding', 'slow', 'lag', 'loading', 'bug', 'glitch', 'broken', 'not working', "doesn't work", 'error', 'app', 'interface', 'ui', 'navigation', 'confusing', 'hard to use'],
+    include: ['crash', 'crashes', 'crashed', 'crashing', 'freeze', 'freezes', 'frozen', 'freezing', 'hang', 'hangs', 'hanging', 'unresponsive', 'force close', 'force stop', 'not responding', 'slow', 'lag', 'laggy', 'lagging', 'loading', 'load time', 'takes forever', 'bug', 'buggy', 'glitch', 'broken', 'not working', "doesn't work", 'does not work', 'error', 'interface', 'ui', 'navigation', 'navigate', 'design', 'confusing', 'hard to use', 'not got activated', 'not activated', 'never activated', 'did not activate', "didn't activate"],
+    contextReq: ['crash', 'crashing', 'freeze', 'freezing', 'hang', 'unresponsive', 'force close', 'not responding', 'slow', 'lag', 'loading', 'bug', 'glitch', 'broken', 'not working', "doesn't work", 'error', 'app', 'interface', 'ui', 'navigation', 'confusing', 'hard to use', 'activated', 'activation'],
     exclude: ['late', 'delayed', 'no show', 'no-show', "didn't come", 'cancelled', 'incomplete', 'not clean', 'dirty', 'unprofessional', 'rude', 'maid', 'house help', 'househelp', 'cleaning', 'worker', 'professional', 'stolen', 'theft', 'anklet', 'jewellery'],
     allowPositive: false,
     quoteKeywords: ['crash', 'freeze', 'hang', 'slow', 'lag', 'bug', 'glitch', 'broken', 'not working', "doesn't work", 'error', 'loading', 'confusing', 'hard to use'],
@@ -281,7 +281,20 @@ function isNegative(rating: StarRating): boolean {
 // ---------------------------------------------------------------------------
 
 const POSITIVE_WORDS = ['good', 'great', 'excellent', 'amazing', 'wonderful', 'best', 'love', 'loved', 'perfect', 'awesome', 'fantastic', 'happy', 'satisfied', 'recommend', 'helpful', 'punctual', 'on time', 'clean', 'friendly', 'polite', 'smooth', 'seamless', 'easy to use', 'user friendly', 'user-friendly', 'well done', 'thank']
-const NEGATIVE_WORDS = ['bad', 'worst', 'terrible', 'horrible', 'poor', 'not good', 'not satisfied', 'unsatisfied', 'disappointed', 'disappointing', 'useless', 'waste', 'fraud', 'scam', 'cheat', 'pathetic', 'awful', 'frustrated', 'frustrating', 'angry', 'annoying', 'complaint', 'complain', 'issue', 'problem', 'failed', 'broken', 'crash', 'crashed', 'crashing', 'stolen', 'rude', 'unprofessional', 'dirty', 'late', 'delayed', 'cancelled', 'no show', 'no response', 'no reply', 'refund', 'not resolved', 'unresolved', 'sold out', 'cannot book', "can't book", 'not working', "doesn't work"]
+const NEGATIVE_WORDS = ['bad', 'worst', 'terrible', 'horrible', 'poor', 'not good', 'not satisfied', 'unsatisfied', 'disappointed', 'disappointing', 'useless', 'waste', 'fraud', 'scam', 'cheat', 'pathetic', 'awful', 'frustrated', 'frustrating', 'angry', 'annoying', 'complaint', 'complain', 'issue', 'problem', 'failed', 'broken', 'crash', 'crashed', 'crashing', 'stolen', 'rude', 'unprofessional', 'dirty', 'late', 'delayed', 'cancelled', 'no show', 'no response', 'no reply', 'refund', 'not resolved', 'unresolved', 'sold out', 'cannot book', "can't book", 'not working', "doesn't work", 'not available', 'no slots', 'no slot', 'fee is very high', 'fees are very high']
+
+/** Positive expressions that are actually negative when negated or non-literal. */
+const NEGATED_POSITIVE_PATTERNS: RegExp[] = [
+  /\bnot\s+(?:been\s+)?(?:good|satisfied|working|available|resolved|helpful|happy)\b/i,
+  /\b(?:has|have|had)\s+not\s+(?:started|arrived|come|been)\b/i,
+  /\b(?:has|have|had)nt\s+(?:started|arrived|come|been)\b/i,
+  /\bnever\s+(?:started|arrived|came|worked)\b/i,
+  /\bnot\s+on\s+time\b/i,
+]
+
+function isNegatedPositiveText(text: string): boolean {
+  return NEGATED_POSITIVE_PATTERNS.some((p) => p.test(text))
+}
 
 /** A stray word that flips sentiment on its own is not decisive; require at least this many keyword hits. */
 const SENTIMENT_MIN_SIGNALS = 2
@@ -297,6 +310,7 @@ function splitClauses(text: string): string[] {
 }
 
 function countPositiveWords(text: string): number {
+  if (isNegatedPositiveText(text)) return 0
   return POSITIVE_WORDS.filter((w) => hasKeyword(text, w)).length
 }
 
@@ -325,9 +339,17 @@ function detectSentiment(review: Review): Sentiment {
 
   // Mixed or sparse text: judge each clause and combine.
   const clauses = splitClauses(text)
-  const hasPositiveClause = clauses.some((c) => countPositiveWords(c) > 0)
-  const hasNegativeClause = clauses.some((c) => countNegativeWords(c) > 0)
-  if (hasPositiveClause && hasNegativeClause) return 'mixed'
+  const positiveClauses = clauses.filter((c) => countPositiveWords(c) > 0).length
+  const negativeClauses = clauses.filter((c) => countNegativeWords(c) > 0).length
+  const hasPositiveClause = positiveClauses > 0
+  const hasNegativeClause = negativeClauses > 0
+  // A clearly dominant polarity across clauses is not mixed.
+  const CLAUSE_DOMINANCE = 3
+  if (hasPositiveClause && hasNegativeClause) {
+    if (negativeClauses >= positiveClauses * CLAUSE_DOMINANCE) return 'negative'
+    if (positiveClauses >= negativeClauses * CLAUSE_DOMINANCE) return 'positive'
+    return 'mixed'
+  }
 
   // Fall back to the rating, which is the reviewer's own verdict.
   if (review.rating >= 4) return 'positive'
