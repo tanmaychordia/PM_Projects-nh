@@ -21,11 +21,14 @@ import type {
 // - exclude: keywords that disqualify the match (e.g. positive words for pain categories)
 //
 // A review matches a category only if:
-// 1. At least one include keyword is present, AND
-// 2. If contextReq is non-empty, at least one context keyword co-occurs, AND
-// 3. No exclude keyword is present (unless an override rule fires)
+// 1. At least one include keyword is present in a clause, AND
+// 2. If contextReq is non-empty, at least one context keyword co-occurs in that clause, AND
+// 3. No exclude keyword is present in that clause (unless an excludeUnless keyword fires)
 //
-// This prevents "lost anklet" → data_sync, "slow service" → app_performance, etc.
+// Matching is clause-level (sentence or "but"/"however" segments) so that one
+// category's keywords never suppress an independently valid category described
+// elsewhere in the same review. A single review can therefore receive multiple
+// child categories when several issues are described.
 // ===========================================================================
 
 interface CategoryRule {
@@ -35,6 +38,8 @@ interface CategoryRule {
   include: string[]
   contextReq: string[]
   exclude: string[]
+  /** If any of these stronger keywords appear in the clause, the exclude list is waived for that clause. */
+  excludeUnless?: string[]
   /** If true, positive sentiment does not disqualify (used for positive_experience). */
   allowPositive: boolean
   /** Keywords used to extract an evidence quote for this category. */
@@ -56,7 +61,8 @@ const TAXONOMY: CategoryRule[] = [
     summary: 'Late arrival, no-show, cancellation, incomplete work, poor cleaning quality, or unprofessional conduct.',
     include: ['late', 'delayed', 'delay', 'no show', 'no-show', "didn't come", 'did not come', "didn't arrive", 'did not arrive', 'cancelled', 'canceled', 'incomplete', 'not clean', 'dirty', 'poor service', 'bad service', 'unprofessional', 'rude', 'bad behavior', 'behaviour', 'not satisfied', 'unsatisfied', 'poor quality', 'bad quality', 'worst service', 'terrible service'],
     contextReq: ['late', 'delay', 'no show', 'no-show', "didn't come", 'did not come', "didn't arrive", 'did not arrive', 'cancelled', 'canceled', 'incomplete', 'not clean', 'dirty', 'poor service', 'bad service', 'unprofessional', 'rude', 'bad behavior', 'behaviour', 'not satisfied', 'unsatisfied', 'poor quality', 'bad quality', 'worst service', 'terrible service', 'cleaning', 'worker', 'maid', 'house help', 'househelp', 'staff', 'professional', 'service'],
-    exclude: ['crash', 'freeze', 'bug', 'app', 'login', 'otp', 'payment', 'refund', 'wallet', 'charged', 'transaction', 'slot', 'booking', 'update', 'version', 'stolen', 'theft', 'anklet', 'jewellery', 'jewelry', 'belonging', 'missing', 'lost', 'sold out'],
+    exclude: ['stolen', 'theft', 'anklet', 'jewellery', 'jewelry'],
+    excludeUnless: ['late', 'delayed', 'no show', 'no-show', 'cancelled', 'canceled', 'incomplete', 'not clean', 'dirty', 'unprofessional', 'rude'],
     allowPositive: false,
     quoteKeywords: ['late', 'delayed', 'no show', "didn't come", 'cancelled', 'incomplete', 'not clean', 'dirty', 'unprofessional', 'rude', 'poor service', 'bad service', 'worst service', 'not satisfied', 'poor quality'],
     recommendation: {
@@ -72,9 +78,10 @@ const TAXONOMY: CategoryRule[] = [
     id: 'booking_availability',
     label: 'Booking & availability',
     summary: 'No slots available, booking failures, incorrect availability, or booking confirmation problems.',
-    include: ['slot', 'slots', 'booking', 'book', 'booked', 'availability', 'available', 'sold out', 'no slot', 'cannot book', "can't book", 'booking failed', 'not available', 'schedule'],
-    contextReq: ['slot', 'booking', 'book', 'availability', 'available', 'sold out', 'schedule', 'not available'],
+    include: ['sold out', 'no slot', 'no slots', 'not available', 'unavailable', 'cannot book', "can't book", "couldn't book", 'could not book', 'booking failed', 'no availability', 'slots full', 'slot full', 'fully booked'],
+    contextReq: ['slot', 'slots', 'booking', 'book', 'availability', 'available', 'sold out', 'schedule'],
     exclude: ['crash', 'freeze', 'login', 'otp', 'password'],
+    excludeUnless: ['sold out', 'no slot', 'no slots', 'not available', 'unavailable', 'cannot book', "can't book", 'booking failed', 'no availability'],
     allowPositive: false,
     quoteKeywords: ['slot', 'booking', 'sold out', 'not available', 'no slot', "can't book", 'booking failed', 'booked'],
     recommendation: {
@@ -92,7 +99,8 @@ const TAXONOMY: CategoryRule[] = [
     summary: 'Failed transactions, incorrect charges, missing credits, wallet balance problems, or refund delays.',
     include: ['payment', 'paid', 'transaction', 'charge', 'charged', 'refund', 'refunded', 'wallet', 'balance', 'credit', 'upi', 'debit', 'money', 'amount', 'deducted', 'failed transaction', 'double charge', 'overcharged'],
     contextReq: ['payment', 'paid', 'transaction', 'charge', 'charged', 'refund', 'refunded', 'wallet', 'balance', 'credit', 'upi', 'debit', 'money', 'amount', 'deducted', 'failed', 'double', 'overcharged'],
-    exclude: ['login', 'otp', 'password', 'account access', 'sign in', 'crash', 'freeze', 'slot', 'booking'],
+    exclude: ['login', 'otp', 'password', 'account access', 'sign in', 'crash', 'freeze'],
+    excludeUnless: ['payment', 'paid', 'charge', 'charged', 'refund', 'refunded', 'wallet', 'deducted', 'transaction', 'overcharged', 'double charge'],
     allowPositive: false,
     quoteKeywords: ['payment', 'refund', 'charged', 'wallet', 'balance', 'deducted', 'transaction', 'amount', 'credit', 'failed transaction', 'overcharged'],
     recommendation: {
@@ -108,9 +116,9 @@ const TAXONOMY: CategoryRule[] = [
     id: 'customer_support',
     label: 'Customer support & complaint resolution',
     summary: 'Unreachable support, unresolved complaints, delayed responses, or poor escalation.',
-    include: ['support', 'customer service', 'help', 'no response', 'no reply', 'contact', 'helpline', 'care', 'grievance', 'complaint', 'complain', 'unresolved', 'escalation', 'escalate', 'called support', 'email support', 'raise complaint'],
-    contextReq: ['support', 'customer service', 'no response', 'no reply', 'complaint', 'complain', 'unresolved', 'escalation', 'escalate', 'grievance', 'helpline', 'contact'],
-    exclude: ['crash', 'freeze', 'login', 'otp', 'slot', 'booking'],
+    include: ['support', 'customer service', 'help', 'no response', 'no reply', 'contact', 'helpline', 'care', 'grievance', 'complaint', 'complain', 'unresolved', 'escalation', 'escalate', 'called support', 'email support', 'raise complaint', 'ticket', 'tickets', 'ignored', 'no help', 'not helpful', 'not resolved', 'no assistance'],
+    contextReq: ['support', 'customer service', 'no response', 'no reply', 'complaint', 'complain', 'unresolved', 'escalation', 'escalate', 'grievance', 'helpline', 'contact', 'ticket', 'tickets', 'ignored', 'no help', 'not helpful', 'not resolved', 'no assistance'],
+    exclude: ['crash', 'freeze'],
     allowPositive: false,
     quoteKeywords: ['support', 'no response', 'no reply', 'complaint', 'unresolved', 'escalation', 'customer service', 'grievance', 'helpline'],
     recommendation: {
@@ -129,6 +137,7 @@ const TAXONOMY: CategoryRule[] = [
     include: ['stolen', 'theft', 'stole', 'missing', 'lost', 'disappeared', 'belonging', 'item', 'jewellery', 'jewelry', 'anklet', 'chain', 'ring', 'gold', 'silver', 'money stolen', 'unsafe', 'safety', 'security', 'trust', 'otp shared', 'otp given', 'privacy'],
     contextReq: ['stolen', 'theft', 'stole', 'missing', 'lost', 'disappeared', 'belonging', 'item', 'jewellery', 'jewelry', 'anklet', 'chain', 'ring', 'gold', 'silver', 'unsafe', 'safety', 'security', 'trust', 'otp shared', 'otp given', 'privacy'],
     exclude: ['crash', 'freeze', 'bug', 'login', 'password', 'slot', 'booking', 'sync', 'data sync', 'order missing'],
+    excludeUnless: ['stolen', 'theft', 'stole', 'anklet', 'jewellery', 'jewelry', 'disappeared', 'lost'],
     allowPositive: false,
     quoteKeywords: ['stolen', 'theft', 'missing', 'lost', 'belonging', 'anklet', 'chain', 'jewellery', 'jewelry', 'unsafe', 'safety', 'privacy', 'otp shared', 'trust'],
     recommendation: {
@@ -144,8 +153,8 @@ const TAXONOMY: CategoryRule[] = [
     id: 'app_functionality',
     label: 'App functionality & performance',
     summary: 'Crashes, freezes, slow loading, navigation failures, or broken app features.',
-    include: ['crash', 'crashes', 'crashed', 'freeze', 'freezes', 'frozen', 'hang', 'hangs', 'hanging', 'unresponsive', 'force close', 'force stop', 'not responding', 'slow', 'lag', 'laggy', 'loading', 'load time', 'takes forever', 'bug', 'buggy', 'glitch', 'broken', 'not working', "doesn't work", 'does not work', 'error', 'app', 'interface', 'ui', 'navigation', 'navigate', 'design', 'confusing', 'hard to use'],
-    contextReq: ['crash', 'freeze', 'hang', 'unresponsive', 'force close', 'not responding', 'slow', 'lag', 'loading', 'bug', 'glitch', 'broken', 'not working', "doesn't work", 'error', 'app', 'interface', 'ui', 'navigation', 'confusing', 'hard to use'],
+    include: ['crash', 'crashes', 'crashed', 'crashing', 'freeze', 'freezes', 'frozen', 'freezing', 'hang', 'hangs', 'hanging', 'unresponsive', 'force close', 'force stop', 'not responding', 'slow', 'lag', 'laggy', 'lagging', 'loading', 'load time', 'takes forever', 'bug', 'buggy', 'glitch', 'broken', 'not working', "doesn't work", 'does not work', 'error', 'interface', 'ui', 'navigation', 'navigate', 'design', 'confusing', 'hard to use'],
+    contextReq: ['crash', 'crashing', 'freeze', 'freezing', 'hang', 'unresponsive', 'force close', 'not responding', 'slow', 'lag', 'loading', 'bug', 'glitch', 'broken', 'not working', "doesn't work", 'error', 'app', 'interface', 'ui', 'navigation', 'confusing', 'hard to use'],
     exclude: ['late', 'delayed', 'no show', 'no-show', "didn't come", 'cancelled', 'incomplete', 'not clean', 'dirty', 'unprofessional', 'rude', 'maid', 'house help', 'househelp', 'cleaning', 'worker', 'professional', 'stolen', 'theft', 'anklet', 'jewellery'],
     allowPositive: false,
     quoteKeywords: ['crash', 'freeze', 'hang', 'slow', 'lag', 'bug', 'glitch', 'broken', 'not working', "doesn't work", 'error', 'loading', 'confusing', 'hard to use'],
@@ -165,6 +174,7 @@ const TAXONOMY: CategoryRule[] = [
     include: ['login', 'log in', 'sign in', 'signin', 'logout', 'log out', 'sign out', 'password', 'otp', 'verification code', 'authentication', 'auth', 'credential', 'cannot login', "can't login", "can't log in", 'login failed', 'otp not received', 'otp not coming'],
     contextReq: ['login', 'log in', 'sign in', 'signin', 'logout', 'log out', 'sign out', 'password', 'otp', 'verification code', 'authentication', 'auth', 'credential', 'login failed', 'otp not received', 'otp not coming'],
     exclude: ['payment', 'refund', 'wallet', 'charge', 'transaction', 'slot', 'booking', 'stolen', 'theft', 'anklet'],
+    excludeUnless: ['login', 'log in', 'sign in', 'otp', 'password', 'authentication', 'login failed', 'otp not received'],
     allowPositive: false,
     quoteKeywords: ['login', 'log in', 'sign in', 'otp', 'password', 'authentication', 'login failed', 'otp not received', 'cannot login'],
     recommendation: {
@@ -198,9 +208,10 @@ const TAXONOMY: CategoryRule[] = [
     id: 'positive_experience',
     label: 'Positive experiences',
     summary: 'Explicit praise for service quality, punctuality, helpful professionals, support, or app usability.',
-    include: ['good', 'great', 'excellent', 'amazing', 'wonderful', 'best', 'love', 'loved', 'perfect', 'awesome', 'fantastic', 'happy', 'satisfied', 'recommend', 'highly recommend', 'helpful', 'professional', 'punctual', 'on time', 'clean', 'friendly', 'polite', 'well done', 'good service', 'good app', 'easy to use', 'user friendly', 'user-friendly', 'smooth', 'seamless', '5 star', 'five star'],
+    include: ['good service', 'good app', 'great service', 'great app', 'excellent service', 'excellent app', 'highly recommend', 'love this app', 'loved it', 'loved the service', 'loved the professional', 'perfect service', 'perfect app', 'very satisfied', 'really happy', 'very happy', 'easy to use', 'user friendly', 'user-friendly', 'smooth', 'seamless', '5 star', 'five star', 'on time', 'punctual', 'very helpful', 'amazing service', 'amazing app', 'best service', 'best app', 'friendly', 'polite', 'well done'],
     contextReq: [],
-    exclude: ['bad', 'worst', 'terrible', 'horrible', 'poor', 'not good', 'not satisfied', 'complaint', 'issue', 'problem', 'failed', 'broken', 'crash'],
+    exclude: ['bad', 'worst', 'terrible', 'horrible', 'poor', 'not good', 'not satisfied', 'unsatisfied', 'disappointed', 'complaint', 'complain', 'issue', 'problem', 'failed', 'broken', 'crash', 'refund', 'late', 'no show', 'cancelled', 'stolen', 'rude', 'dirty', 'crashed', 'crashing'],
+    excludeUnless: ['but', 'however', 'although', 'apart from', 'except'],
     allowPositive: true,
     quoteKeywords: ['good', 'great', 'excellent', 'amazing', 'wonderful', 'best', 'love', 'perfect', 'awesome', 'satisfied', 'recommend', 'helpful', 'punctual', 'on time', 'clean', 'friendly', 'polite', 'smooth', 'seamless'],
     recommendation: {
@@ -270,22 +281,55 @@ function isNegative(rating: StarRating): boolean {
 // ---------------------------------------------------------------------------
 
 const POSITIVE_WORDS = ['good', 'great', 'excellent', 'amazing', 'wonderful', 'best', 'love', 'loved', 'perfect', 'awesome', 'fantastic', 'happy', 'satisfied', 'recommend', 'helpful', 'punctual', 'on time', 'clean', 'friendly', 'polite', 'smooth', 'seamless', 'easy to use', 'user friendly', 'user-friendly', 'well done', 'thank']
-const NEGATIVE_WORDS = ['bad', 'worst', 'terrible', 'horrible', 'poor', 'not good', 'not satisfied', 'unsatisfied', 'disappointed', 'disappointing', 'useless', 'waste', 'fraud', 'scam', 'cheat', 'pathetic', 'awful', 'frustrated', 'frustrating', 'angry', 'annoying', 'complaint', 'issue', 'problem', 'failed', 'broken', 'crash', 'stolen', 'rude', 'unprofessional', 'dirty', 'late', 'cancelled', 'no show', 'no response', 'no reply']
+const NEGATIVE_WORDS = ['bad', 'worst', 'terrible', 'horrible', 'poor', 'not good', 'not satisfied', 'unsatisfied', 'disappointed', 'disappointing', 'useless', 'waste', 'fraud', 'scam', 'cheat', 'pathetic', 'awful', 'frustrated', 'frustrating', 'angry', 'annoying', 'complaint', 'complain', 'issue', 'problem', 'failed', 'broken', 'crash', 'crashed', 'crashing', 'stolen', 'rude', 'unprofessional', 'dirty', 'late', 'delayed', 'cancelled', 'no show', 'no response', 'no reply', 'refund', 'not resolved', 'unresolved', 'sold out', 'cannot book', "can't book", 'not working', "doesn't work"]
+
+/** A stray word that flips sentiment on its own is not decisive; require at least this many keyword hits. */
+const SENTIMENT_MIN_SIGNALS = 2
+
+/** Clauses are split on sentence boundaries and contrast words so sentiment is judged per segment. */
+const CLAUSE_SPLIT_PATTERN = /[.!?;\n]+|\b(?:but|however|although|though|whereas)\b/i
+
+function splitClauses(text: string): string[] {
+  return text
+    .split(CLAUSE_SPLIT_PATTERN)
+    .map((c) => c.trim())
+    .filter((c) => c.length > 0)
+}
+
+function countPositiveWords(text: string): number {
+  return POSITIVE_WORDS.filter((w) => hasKeyword(text, w)).length
+}
+
+function countNegativeWords(text: string): number {
+  return NEGATIVE_WORDS.filter((w) => hasKeyword(text, w)).length
+}
 
 function detectSentiment(review: Review): Sentiment {
   const text = combineReviewText(review)
   if (!text.trim()) return 'neutral'
 
-  const positiveCount = POSITIVE_WORDS.filter((w) => hasKeyword(text, w)).length
-  const negativeCount = NEGATIVE_WORDS.filter((w) => hasKeyword(text, w)).length
+  const positiveCount = countPositiveWords(text)
+  const negativeCount = countNegativeWords(text)
 
-  // Rating is a strong signal
-  if (review.rating >= 4 && negativeCount === 0) return 'positive'
-  if (review.rating <= 2 && positiveCount === 0) return 'negative'
-
-  if (positiveCount > 0 && negativeCount > 0) return 'mixed'
-  if (positiveCount > 0 && negativeCount === 0) return 'positive'
+  // Star rating is supporting evidence only: with a decisive keyword balance it
+  // never overrides the text.
+  if (positiveCount >= SENTIMENT_MIN_SIGNALS && negativeCount >= SENTIMENT_MIN_SIGNALS) {
+    return 'mixed'
+  }
   if (negativeCount > 0 && positiveCount === 0) return 'negative'
+  if (positiveCount > 0 && negativeCount === 0) {
+    // A single positive word in a low-rated review is weak evidence of praise.
+    if (review.rating <= 2 && positiveCount < SENTIMENT_MIN_SIGNALS) return 'negative'
+    return 'positive'
+  }
+
+  // Mixed or sparse text: judge each clause and combine.
+  const clauses = splitClauses(text)
+  const hasPositiveClause = clauses.some((c) => countPositiveWords(c) > 0)
+  const hasNegativeClause = clauses.some((c) => countNegativeWords(c) > 0)
+  if (hasPositiveClause && hasNegativeClause) return 'mixed'
+
+  // Fall back to the rating, which is the reviewer's own verdict.
   if (review.rating >= 4) return 'positive'
   if (review.rating <= 2) return 'negative'
   return 'neutral'
@@ -318,45 +362,56 @@ interface CategoryMatch {
   reason: string
 }
 
+/**
+ * Splits review text into clauses (sentences and contrast segments) and returns
+ * those where at least one include keyword appears together with its context
+ * requirements and without a blocking exclude keyword. A category mentioned in
+ * another clause never suppresses this clause's match.
+ */
+function matchRuleInClauses(clauses: string[], rule: CategoryRule): { matched: boolean; includeKeywords: string[]; matchedClause: string | null } {
+  const matchedIncludes = new Set<string>()
+  for (const clause of clauses) {
+    const includeKeywords = rule.include.filter((k) => hasKeyword(clause, k))
+    if (includeKeywords.length === 0) continue
+
+    if (rule.contextReq.length > 0) {
+      const hasContext = rule.contextReq.some((k) => hasKeyword(clause, k))
+      if (!hasContext) continue
+    }
+
+    const excluded = rule.exclude.filter((k) => hasKeyword(clause, k))
+    if (excluded.length > 0) {
+      const waived = (rule.excludeUnless ?? []).some((k) => hasKeyword(clause, k))
+      if (!waived) continue
+    }
+
+    for (const k of includeKeywords) matchedIncludes.add(k)
+  }
+  return { matched: matchedIncludes.size > 0, includeKeywords: Array.from(matchedIncludes), matchedClause: matchedIncludes.size > 0 ? clauses[0] : null }
+}
+
 function matchCategories(review: Review): CategoryMatch[] {
   const text = combineReviewText(review)
   if (!text.trim()) return []
 
   const sentiment = detectSentiment(review)
+  const clauses = splitClauses(text)
   const matches: CategoryMatch[] = []
 
   for (const rule of TAXONOMY) {
     if (rule.include.length === 0) continue // skip other_unclear
 
-    // Check exclude keywords first (quick reject)
-    if (!rule.allowPositive && sentiment === 'positive' && hasAny(text, rule.exclude)) {
+    // A genuinely positive review (high rating, no detected complaints) should
+    // not match pain categories.
+    if (!rule.allowPositive && sentiment === 'positive' && review.rating >= 4) {
       continue
     }
 
-    // A positive review should not match pain categories
-    if (!rule.allowPositive && sentiment === 'positive' && review.rating >= 4) {
-      // Still allow if the review is genuinely mixed
-      if (sentiment === 'positive') continue
-    }
+    const { matched, includeKeywords } = matchRuleInClauses(clauses, rule)
+    if (!matched) continue
 
-    // Must have at least one include keyword
-    const includeKeywords = rule.include.filter((k) => hasKeyword(text, k))
-    if (includeKeywords.length === 0) continue
-
-    // If contextReq is non-empty, must also have at least one context keyword
-    if (rule.contextReq.length > 0) {
-      const contextKeywords = rule.contextReq.filter((k) => hasKeyword(text, k))
-      if (contextKeywords.length === 0) continue
-    }
-
-    // Check exclude keywords (for non-positive categories)
-    if (!rule.allowPositive) {
-      const excluded = rule.exclude.filter((k) => hasKeyword(text, k))
-      // If excluded keywords dominate, skip
-      if (excluded.length > includeKeywords.length) continue
-    }
-
-    // For positive_experience, require positive sentiment
+    // For positive_experience, require positive or mixed sentiment and a
+    // non-negative rating.
     if (rule.id === 'positive_experience' && sentiment !== 'positive' && sentiment !== 'mixed') {
       continue
     }
@@ -373,8 +428,6 @@ function matchCategories(review: Review): CategoryMatch[] {
       reason: `Matched keywords: ${includeKeywords.slice(0, 3).join(', ')}. Sentiment: ${sentiment}.`,
     })
   }
-
-  // If no specific category matched, assign to other_unclear
   if (matches.length === 0) {
     matches.push({
       categoryId: 'other_unclear',
@@ -402,9 +455,9 @@ function selectPrimary(matches: CategoryMatch[], review: Review): CategoryMatch 
     const domain = detectDomain(text)
     const domainPref: Record<CategoryId, 'app' | 'service' | 'both' | 'unclear'> = {
       service_delivery: 'service',
-      booking_availability: 'app',
-      payments_credits_refunds: 'app',
-      customer_support: 'service',
+      booking_availability: 'unclear',
+      payments_credits_refunds: 'unclear',
+      customer_support: 'unclear',
       trust_safety_property: 'service',
       app_functionality: 'app',
       account_access: 'app',
@@ -724,6 +777,7 @@ export function analyzeReviews(reviews: Review[]): AnalysisResponse {
     'Reviews can appear in multiple themes (overlapping). Percentages are NOT mutually exclusive shares.',
     'Confidence is a heuristic label based on score, review count, certainty ratio, and evidence ratio. It is NOT statistically calibrated.',
     'Evidence "verified" means the quote is an exact substring of the review. "Relevant" means the quote contextually supports the category. A quote can be verified but not relevant.',
+    'Positive experience requires an explicitly described positive experience, not just a positive word. Reviews that praise one aspect while complaining about another are classified as mixed, with the complaint categories retained.',
   ]
   if (reviewsUnclear > 0) {
     limitations.push(`${reviewsUnclear} review${reviewsUnclear === 1 ? '' : 's'} could not be confidently assigned to a specific category and are listed as "Other / unclear."`)
@@ -753,7 +807,7 @@ export function analyzeReviews(reviews: Review[]): AnalysisResponse {
     method: 'rule_based_v2',
     methodLabel: 'Rule-based analysis v2 (Snabbit taxonomy)',
     methodDescription:
-      'Reviews are classified using a Snabbit-specific taxonomy with context-aware keyword rules. Each category requires include keywords plus contextual co-occurrence, and positive reviews are excluded from pain categories. No AI model is involved.',
+      'Reviews are classified using a Snabbit-specific taxonomy with context-aware keyword rules applied per clause (sentence or contrast segment), so multiple issues in one review can each be detected. Star rating is treated as supporting evidence for sentiment, never as the sole determinant. No AI model is involved.',
     limitations,
     taxonomy: taxonomyOutput,
     painPoints: topPainPoints,

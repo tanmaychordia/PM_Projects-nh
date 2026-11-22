@@ -236,6 +236,132 @@ function makeReview(partial: Partial<Review>): Review {
 }
 
 // ---------------------------------------------------------------------------
+// Regression tests: classification quality fixes
+// ---------------------------------------------------------------------------
+
+// R1: Booking availability without an app functionality complaint → booking only
+{
+  const r = makeReview({
+    reviewId: 'r1',
+    rating: 1,
+    title: 'No slots',
+    text: 'There are no slots available this week. Everything is sold out and I cannot book a cleaning service.',
+  })
+  const c = classifyReview(r)
+  assert(c.primaryCategory === 'booking_availability', `R1: sold-out slots → booking_availability (got ${c.primaryCategory})`)
+  assert(!c.secondaryCategories.includes('app_functionality'), `R1: booking review must NOT be app_functionality (secondary: ${c.secondaryCategories.join(', ')})`)
+}
+
+// R2: Actual app crash → app_functionality, not booking
+{
+  const r = makeReview({
+    reviewId: 'r2',
+    rating: 1,
+    title: 'Keeps crashing',
+    text: 'The app crashes every time I open it. It freezes on the loading screen and then force closes.',
+  })
+  const c = classifyReview(r)
+  assert(c.primaryCategory === 'app_functionality', `R2: crash review → app_functionality (got ${c.primaryCategory})`)
+  assert(!c.secondaryCategories.includes('booking_availability'), `R2: crash review must NOT be booking_availability (secondary: ${c.secondaryCategories.join(', ')})`)
+}
+
+// R3: Payment plus booking complaints in the same review → both categories
+{
+  const r = makeReview({
+    reviewId: 'r3',
+    rating: 1,
+    title: 'Payment and booking problems',
+    text: 'My payment was charged twice but the booking failed. Also there were no slots available at all.',
+  })
+  const c = classifyReview(r)
+  const allCats = [c.primaryCategory, ...c.secondaryCategories]
+  assert(allCats.includes('payments_credits_refunds'), `R3: double charge → payments_credits_refunds (got ${allCats.join(', ')})`)
+  assert(allCats.includes('booking_availability'), `R3: failed booking → booking_availability (got ${allCats.join(', ')})`)
+}
+
+// R4: Booking plus customer support complaints in the same review → both categories
+{
+  const r = makeReview({
+    reviewId: 'r4',
+    rating: 1,
+    title: 'Cannot book and no help',
+    text: 'I could not book any slot for three days. I raised a complaint with support but there has been no response and the issue is still unresolved.',
+  })
+  const c = classifyReview(r)
+  const allCats = [c.primaryCategory, ...c.secondaryCategories]
+  assert(allCats.includes('booking_availability'), `R4: cannot book → booking_availability (got ${allCats.join(', ')})`)
+  assert(allCats.includes('customer_support'), `R4: unresponsive support → customer_support (got ${allCats.join(', ')})`)
+}
+
+// R5: Service delivery plus refund complaints → both categories
+{
+  const r = makeReview({
+    reviewId: 'r5',
+    rating: 1,
+    title: 'Late and no refund',
+    text: 'The professional arrived two hours late and the cleaning was incomplete. I requested a refund for the poor service but the refund has not been processed.',
+  })
+  const c = classifyReview(r)
+  const allCats = [c.primaryCategory, ...c.secondaryCategories]
+  assert(allCats.includes('service_delivery'), `R5: late + incomplete → service_delivery (got ${allCats.join(', ')})`)
+  assert(allCats.includes('payments_credits_refunds'), `R5: refund not processed → payments_credits_refunds (got ${allCats.join(', ')})`)
+}
+
+// R6: Positive language inside an otherwise negative review → negative, not positive_experience
+{
+  const r = makeReview({
+    reviewId: 'r6',
+    rating: 1,
+    title: 'Waste of money',
+    text: 'The app looks good but the service was terrible. The professional arrived late and was rude. Worst experience, I want a refund.',
+  })
+  const c = classifyReview(r)
+  assert(c.sentiment === 'negative' || c.sentiment === 'mixed', `R6: negative review with a positive word → negative or mixed (got ${c.sentiment})`)
+  const allCats = [c.primaryCategory, ...c.secondaryCategories]
+  assert(!allCats.includes('positive_experience'), `R6: complaint review must NOT be positive_experience (got ${allCats.join(', ')})`)
+}
+
+// R7: Mixed positive and negative experiences → mixed sentiment
+{
+  const r = makeReview({
+    reviewId: 'r7',
+    rating: 3,
+    title: 'Mixed feelings',
+    text: 'The cleaning was excellent and the professional was friendly and polite. But the app is buggy and payment failed twice before I could pay.',
+  })
+  const c = classifyReview(r)
+  assert(c.sentiment === 'mixed', `R7: explicit praise + complaints → mixed (got ${c.sentiment})`)
+}
+
+// R8: Genuinely positive review → positive, positive_experience
+{
+  const r = makeReview({
+    reviewId: 'r8',
+    rating: 5,
+    title: 'Excellent service',
+    text: 'Excellent cleaning service. The professional was punctual, friendly and did a great job. Highly recommend this app!',
+  })
+  const c = classifyReview(r)
+  assert(c.sentiment === 'positive', `R8: genuinely positive → positive (got ${c.sentiment})`)
+  assert(c.primaryCategory === 'positive_experience', `R8: → positive_experience (got ${c.primaryCategory})`)
+}
+
+// R9: Genuinely negative review, no positive language → negative
+{
+  const r = makeReview({
+    reviewId: 'r9',
+    rating: 1,
+    title: 'Terrible experience',
+    text: 'The professional did not show up at all. Customer service has no response and my complaint is unresolved. Waste of time.',
+  })
+  const c = classifyReview(r)
+  assert(c.sentiment === 'negative', `R9: genuinely negative → negative (got ${c.sentiment})`)
+  const allCats = [c.primaryCategory, ...c.secondaryCategories]
+  assert(allCats.includes('customer_support'), `R9: unresponsive support detected → customer_support (got ${allCats.join(', ')})`)
+  assert(!allCats.includes('positive_experience'), `R9: must NOT be positive_experience (got ${allCats.join(', ')})`)
+}
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 console.log(`\n${passed} passed, ${failed} failed`)
