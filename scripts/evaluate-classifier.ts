@@ -267,7 +267,7 @@ for (const p of perReview) {
 // False positives/negatives per category (child level, improved vs baseline)
 console.log('\n=== 4. Per-category child-level FP/FN (improved vs baseline) ===')
 const allChildIds = [...new Set(perReview.flatMap((p) => [p.improved.primaryCategory, ...p.improved.secondaryCategories, p.basePrimary, ...p.baseSecondary, ...p.row.verifiedChildren]))]
-for (const cat of allChildIds) {
+for (const cat of allChildIds as CategoryId[]) {
   let bFp = 0, bFn = 0, iFp = 0, iFn = 0
   for (const p of perReview) {
     const truth = new Set(p.row.verifiedChildren)

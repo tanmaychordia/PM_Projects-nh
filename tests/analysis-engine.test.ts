@@ -361,6 +361,66 @@ function makeReview(partial: Partial<Review>): Review {
   assert(!allCats.includes('positive_experience'), `R9: must NOT be positive_experience (got ${allCats.join(', ')})`)
 }
 
+// R10: Booking availability — indirect availability complaints (Phase 2 recall fixes)
+{
+  const cases: [string, string][] = [
+    ['unpredictable slot release', 'slot opens randomly so customer has to seat whole day to look at the app for the preferred slot to come.'],
+    ['slot full after prepayment', 'After buying 3 bookings in advance they are saying the slot is full. Once you pay in advance your turn will come according to them.'],
+    ['always fully booked', 'This app always has full booking, you can\'t even book a single service.'],
+    ['provider unavailability', 'The availability of house helps becomes extremely difficult during festive occasions and weekends when demand is higher.'],
+    ['provider-caused cancellation', 'They cancelled my booking on the assigned day. Why take the booking if you cannot service?'],
+    ['no third slot after package', 'I thought the combo would prioritize, but they did not allow to book the third slot at all.'],
+  ]
+  for (const [name, text] of cases) {
+    const r = makeReview({ reviewId: `r10-${name}`, rating: 1, text })
+    const c = classifyReview(r)
+    const allCats = [c.primaryCategory, ...c.secondaryCategories]
+    assert(allCats.includes('booking_availability'), `R10 ${name}: → booking_availability (got ${allCats.join(', ')})`)
+  }
+}
+
+// R10b: Booking availability must not capture customer-initiated cancellations or app failures
+{
+  const r = makeReview({
+    reviewId: 'r10b',
+    rating: 2,
+    title: 'Changed my mind',
+    text: 'I cancelled the booking myself because my plans changed, but the app crashed when I tried to cancel and it froze twice.',
+  })
+  const c = classifyReview(r)
+  const allCats = [c.primaryCategory, ...c.secondaryCategories]
+  assert(allCats.includes('app_functionality'), `R10b: app crash → app_functionality (got ${allCats.join(', ')})`)
+}
+
+// R11: Missing secondary categories recovered — support, payments, service delivery
+{
+  // Support via "customer care" + "no response"
+  const r1 = makeReview({ reviewId: 'r11a', rating: 1, text: 'There is no slot available till Sunday. Customer care service is the worst and they never respond.' })
+  const c1 = classifyReview(r1)
+  const all1 = [c1.primaryCategory, ...c1.secondaryCategories]
+  assert(all1.includes('customer_support'), `R11 support: customer care unresponsive → customer_support (got ${all1.join(', ')})`)
+
+  // Support via plural "complaints" with no other support keyword
+  const r2 = makeReview({ reviewId: 'r11b', rating: 1, text: 'Slots are sold out constantly. I raised complaints several times and they are all unresolved.' })
+  const c2 = classifyReview(r2)
+  const all2 = [c2.primaryCategory, ...c2.secondaryCategories]
+  assert(all2.includes('customer_support'), `R11 support: repeated complaints → customer_support (got ${all2.join(', ')})`)
+
+  // Payments via package/prepaid context
+  const r3 = makeReview({ reviewId: 'r11c', rating: 2, text: 'Service experts are not available most of the time. They should carry forward the unused visit or increase the validity of the pack.' })
+  const c3 = classifyReview(r3)
+  const all3 = [c3.primaryCategory, ...c3.secondaryCategories]
+  assert(all3.includes('booking_availability'), `R11 payments: pack validity → booking_availability (got ${all3.join(', ')})`)
+  assert(all3.includes('payments_credits_refunds'), `R11 payments: unused pack validity → payments_credits_refunds (got ${all3.join(', ')})`)
+
+  // Service delivery via cancellation without replacement + expert not allotted
+  const r4 = makeReview({ reviewId: 'r11d', rating: 1, text: 'Worst application, booking got canceled and they did not allot a expert.' })
+  const c4 = classifyReview(r4)
+  const all4 = [c4.primaryCategory, ...c4.secondaryCategories]
+  assert(all4.includes('service_delivery'), `R11 service: no expert allotted → service_delivery (got ${all4.join(', ')})`)
+  assert(all4.includes('booking_availability'), `R11 service: cancelled booking → booking_availability (got ${all4.join(', ')})`)
+}
+
 // ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
